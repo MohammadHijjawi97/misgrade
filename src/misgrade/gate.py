@@ -45,6 +45,7 @@ from typing import Final, Literal, NoReturn, cast
 
 from misgrade.errors import GateSyntaxError
 from misgrade.models import FindingKind, Rate, Summary
+from misgrade.stats import wilson
 
 __all__ = [
     "COUNT_METRICS",
@@ -236,8 +237,6 @@ def evaluate_gate(gate: Gate, summary: Summary) -> GateResult:
 
 def _rate(metric: str, summary: Summary) -> Rate:
     if metric == "error_rate":
-        from misgrade.stats import wilson
-
         return wilson(summary.errors, summary.calls)
     rates = {
         "fp_rate": summary.fp,

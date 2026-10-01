@@ -31,6 +31,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Final
 
+from misgrade.errors import ConfigError
 from misgrade.minimize import Oracle, Rebuild
 from misgrade.models import CaseKind, Item, Observation, Phase, Verdict, classify, decision
 
@@ -54,19 +55,19 @@ def engine_name() -> str:
     """``hypothesis <version>`` or ``random``: the engine :func:`search_compositions` uses.
 
     Inside a running Hypothesis test (misgrade called from a property test) the random engine
-    is used, since Hypothesis does not nest. Raises :class:`ValueError` when
+    is used, since Hypothesis does not nest. Raises :class:`~misgrade.errors.ConfigError` when
     :data:`ENGINE_ENV` names an unknown engine, or ``hypothesis`` when it is not installed.
     """
     wanted = os.environ.get(ENGINE_ENV, "auto").strip().lower() or "auto"
     if wanted not in ("auto", "random", "hypothesis"):
-        raise ValueError(f"{ENGINE_ENV} must be auto, random or hypothesis (got {wanted!r})")
+        raise ConfigError(f"{ENGINE_ENV} must be auto, random or hypothesis (got {wanted!r})")
     if wanted == "random":
         return "random"
     try:
         import hypothesis
     except ImportError:
         if wanted == "hypothesis":
-            raise ValueError(
+            raise ConfigError(
                 f"{ENGINE_ENV}=hypothesis but Hypothesis is not installed "
                 '(pip install "misgrade[search]")'
             ) from None

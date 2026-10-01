@@ -13,6 +13,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from _support import accept, make_item, reject
+from misgrade.errors import ConfigError
 from misgrade.models import (
     AnswerType,
     CallStatus,
@@ -100,7 +101,7 @@ def test_engine_name(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(ENGINE_ENV)
     assert engine_name().startswith("hypothesis ")  # installed in the dev environment
     monkeypatch.setenv(ENGINE_ENV, "genetic")
-    with pytest.raises(ValueError, match="auto, random or hypothesis"):
+    with pytest.raises(ConfigError, match="auto, random or hypothesis"):
         engine_name()
 
 
@@ -109,7 +110,7 @@ def test_engine_falls_back_to_random_without_hypothesis(monkeypatch: pytest.Monk
     monkeypatch.setenv(ENGINE_ENV, "auto")
     assert engine_name() == "random"
     monkeypatch.setenv(ENGINE_ENV, "hypothesis")
-    with pytest.raises(ValueError, match="not installed"):
+    with pytest.raises(ConfigError, match="not installed"):
         engine_name()
 
 
