@@ -24,7 +24,7 @@ without a reference: counted as calls, never compared.
 
 How each mode runs, exactly (every mode starts a fresh session, so modes do not affect each
 other; the budget is split evenly between the modes that can run, earlier modes getting the
-remainder):
+remainder, and a mode makes at most its share ``s`` of calls):
 
 - **Sample.** Only main-phase observations with an ``ok`` verdict are eligible (one per case).
   Accepted and rejected clean-run verdicts are each shuffled with ``random.Random(seed)`` and
@@ -32,20 +32,21 @@ remainder):
   rejects everything, which only an accepted reference shows). A mode of size ``k`` takes the
   first ``k`` of that order and grades them in main-phase order unless the mode is about
   order.
-- **repeat** (``2k`` calls): the sample is graded twice in one fresh worker; the first pass
+- **repeat** (``k = s // 2``): the sample is graded twice in one fresh worker; the first pass
   has no reference (in a fresh process it is not yet a repetition), the second is compared.
-- **order** (``k``): one fresh worker, the sample in an order shuffled with
+- **order** (``k = s``): one fresh worker, the sample in an order shuffled with
   ``random.Random("order:<seed>")`` (rotated by one if the shuffle kept the main order).
-- **concurrency** (``k``): one fresh worker grades the sample from ``RunConfig.concurrency``
-  threads at once, none of them the main thread.
-- **timeout** (up to ``k + max(1, share // 4)``): the poison cases are graded one by one with a
+- **concurrency** (``k = s``): one fresh worker grades the sample from
+  ``RunConfig.concurrency`` threads at once, none of them the main thread.
+- **timeout** (at most ``max(1, s // 4)`` poison calls, then ``k = s`` minus those): the
+  poison cases are graded one by one with a
   *soft* timeout of ``RunConfig.timeout_s``: a call past it is reported as a timeout and left
   running, so the grader's process lives on; the first poison call that times out ends this
   step. Then the sample is re-graded in the same process. It is re-graded even when no poison
   call exceeded misgrade's timeout, because a grader's own internal timeout may have fired.
   When even the process stops answering (a call that never releases the GIL), it is replaced
   and the sample is graded in the new one.
-- **worker-death** (``k + 1`` or ``k + 2``; not with ``Isolation.NONE``): the first sampled
+- **worker-death** (``k = s - 1`` or ``s - 2``; not with ``Isolation.NONE``): the first sampled
   case is graded while the worker kills the first multiprocessing child process the grader
   started (a ``ProcessPoolExecutor`` or ``multiprocessing.Pool`` worker), as soon as one
   exists; the worker itself survives and the sample is re-graded in it. If the grader started
