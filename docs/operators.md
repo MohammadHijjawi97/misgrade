@@ -115,7 +115,7 @@ Examples use the plain `{answer}` template; *scope* says whether an operator rew
 | `sep.latex-comma` | number | answer | cas | Group the digits in thousands with braced LaTeX commas (``1{,}250``). | `1250` -> `1{,}250` | misgrade design |
 | `sep.narrow-nbsp` | number | answer | cas | Group the digits in thousands with narrow no-break spaces (U+202F, the SI style). | `1250` -> `1⎵250` | SI Brochure, misgrade design |
 | `sep.nbsp` | number | answer | cas | Group the digits in thousands with no-break spaces (U+00A0). | `1250` -> `1⍽250` | misgrade design |
-| `sep.space` | number | answer | cas | Group the digits in thousands with spaces (``1 250``), as the SI brochure recommends. | `1250` -> `1 250` | SI Brochure, misgrade design |
+| `sep.space` | number | answer | cas | Group the digits in thousands with spaces (``1 250``), the grouping the SI brochure describes. | `1250` -> `1 250` | SI Brochure, misgrade design |
 | `sep.thin-space` | number | answer | cas | Group the digits in thousands with LaTeX thin spaces (``1\,250``). | `1250` -> `1\,250` | SI Brochure, misgrade design |
 
 ### unicode-form (notation tier)

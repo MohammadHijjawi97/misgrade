@@ -716,7 +716,8 @@ def sep_comma(text: str, item: Item) -> str | None:
 
 @variant("sep.space", category=Category.THOUSANDS_SEPARATOR, types=[N], method=CAS)
 def sep_space(text: str, item: Item) -> str | None:
-    """Group the digits in thousands with spaces (``1 250``), as the SI brochure recommends."""
+    """Group the digits in thousands with spaces (``1 250``), the grouping the SI brochure
+    describes."""
     return _separated(text, item, " ")
 
 
