@@ -245,6 +245,7 @@ def run_graders(
     ]
     rows: list[SelftestRow] = []
     for grader in graders:
+        planted.clear_markers()  # what a killed grader process of an earlier audit left behind
         spec = GraderSpec("callable", grader.function, name=grader.name)
         is_planted = isinstance(grader, PlantedGrader)
         try:

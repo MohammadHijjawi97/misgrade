@@ -39,6 +39,7 @@ __all__ = [
     "bare_label_only",
     "breaks_after_timeout",
     "case_sensitive_labels",
+    "clear_markers",
     "comma_stops_number",
     "decimal_string_compare",
     "empty_is_full_credit",
@@ -390,10 +391,22 @@ POISON_HANG_S: Final = 1.0
 """How long ``breaks_after_timeout`` hangs on an expensive input (its own evaluator stuck)."""
 
 
-def _marker(name: str) -> Path:
+_MARKED: Final = ("timeout", "worker-death")
+
+
+def _marker(name: str, parent: int | None = None) -> Path:
     """A file that outlives this process: it tells the next grader process started by the same
     parent (the audit) that this one did not end cleanly."""
-    return Path(tempfile.gettempdir()) / f"misgrade-selftest-{name}-{os.getppid()}.marker"
+    pid = os.getppid() if parent is None else parent
+    return Path(tempfile.gettempdir()) / f"misgrade-selftest-{name}-{pid}.marker"
+
+
+def clear_markers(parent: int | None = None) -> None:
+    """Remove the markers of grader processes started by ``parent`` (default: this process),
+    so an audit starts from clean graders whatever an earlier audit left behind."""
+    for name in _MARKED:
+        with contextlib.suppress(OSError):
+            _marker(name, os.getpid() if parent is None else parent).unlink()
 
 
 def _remove_marker(name: str) -> None:
@@ -521,7 +534,7 @@ def reset_state() -> None:
         _STARTED.clear()
         helper = _HELPER.pop("process", None)
         pipe = _HELPER.pop("pipe", None)
-    for name in ("timeout", "worker-death"):
+    for name in _MARKED:
         _remove_marker(name)
     if pipe is not None:
         pipe.close()

@@ -185,3 +185,11 @@ def test_a_killed_grader_process_breaks_its_replacement(child_markers: None) -> 
     pool.shutdown(wait=True)
     assert _grade_in_a_fresh_process(planted.pool_dies_silently, "42", "42") == 0.0
     assert _grade_in_a_fresh_process(planted.pool_dies_silently, "42", "42") == 1.0
+
+
+def test_clear_markers(child_markers: None) -> None:
+    for name in ("timeout", "worker-death"):
+        _child_marker(name).touch()
+    planted.clear_markers()
+    assert not _child_marker("timeout").exists()
+    assert not _child_marker("worker-death").exists()

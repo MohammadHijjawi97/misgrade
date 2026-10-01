@@ -81,3 +81,15 @@ def test_every_category_and_fault_mode_has_a_planted_bug() -> None:
     targets = {PLANTED.get(name).target for name in PLANTED.names()}
     expected = {c for c in Category if c is not Category.IDENTITY} | set(FaultMode)
     assert targets >= expected
+
+
+def test_docs_list_every_self_test_grader() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    doc = (root / "docs" / "selftest.md").read_text(encoding="utf-8")
+    for name in PLANTED.names() + CLEAN.names():
+        assert f"| `{name}` |" in doc, name
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert f"audits {len(PLANTED)} planted graders" in readme
+    assert f"and {len(CLEAN)} clean reference graders" in readme

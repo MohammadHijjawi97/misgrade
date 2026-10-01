@@ -13,7 +13,7 @@ body:
     id: what
     attributes:
       label: What happened
-      description: Paste the output, plus `misgrade --version`, your OS and Python version.
+      description: Paste the output, plus the output of `misgrade version` (misgrade, Python, platform and the libraries that can change verdicts).
     validations:
       required: true
   - type: textarea

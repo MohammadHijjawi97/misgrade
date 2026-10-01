@@ -59,6 +59,14 @@ the oldest and newest Python you have.
   plus, if possible, with it.
 - **An output format**: implement the `Writer` protocol in `misgrade/outputs/` and add a golden
   file rendered from `tests/_support.sample_result()`.
+- **A planted grader** (a grader bug misgrade must keep finding): see "Adding a planted grader"
+  in [docs/selftest.md](docs/selftest.md). Planted and clean graders never import
+  `misgrade.transforms`: a bug shared with the certifiers would hide itself.
+- **Seed items**: hand-written, one JSON object per line in `src/misgrade/seeds/<type>.jsonl`,
+  ids `<type>-NNN` in order, with a prompt that does not read as its own answer (the prompt is
+  echoed back as a mutant). Never copy items from a dataset.
+- **A CLI option, a pytest fixture or an MCP tool**: document it in
+  [docs/interfaces.md](docs/interfaces.md) and keep the exit codes of `misgrade.models.ExitCode`.
 - **A change to the shared model or an interface**: see "Contract changes" in the design
   document.
 
