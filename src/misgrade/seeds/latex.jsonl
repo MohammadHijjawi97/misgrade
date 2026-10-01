@@ -1,3 +1,14 @@
-{"id": "latex-001", "type": "latex", "gold": "\\frac{\\sqrt{3}}{2}", "prompt": "What is the exact value of \\sin(60^\\circ)?"}
+{"id": "latex-001", "type": "latex", "gold": "\\frac{\\sqrt{3}}{2}", "prompt": "What is the exact value of the sine of 60 degrees?"}
 {"id": "latex-002", "type": "latex", "gold": "2\\pi", "prompt": "What is the circumference of a circle of radius 1?"}
-{"id": "latex-003", "type": "latex", "gold": "\\frac{1}{3}", "prompt": "What is \\int_0^1 x^2 \\, dx?"}
+{"id": "latex-003", "type": "latex", "gold": "\\frac{1}{3}", "prompt": "What is the integral of x squared from 0 to 1?"}
+{"id": "latex-004", "type": "latex", "gold": "\\sqrt{2}", "prompt": "How long is the diagonal of a square of side length one?"}
+{"id": "latex-005", "type": "latex", "gold": "\\frac{\\pi}{4}", "prompt": "What is the area of a circle of diameter 1?"}
+{"id": "latex-006", "type": "latex", "gold": "\\frac{1 + \\sqrt{5}}{2}", "prompt": "What is the exact value of the golden ratio?"}
+{"id": "latex-007", "type": "latex", "gold": "3\\sqrt{2}", "prompt": "How long is the diagonal of a square of side length 3?"}
+{"id": "latex-008", "type": "latex", "gold": "\\frac{2}{3}", "prompt": "What is the probability that a fair six-sided die shows more than 2?"}
+{"id": "latex-009", "type": "latex", "gold": "\\frac{\\pi^2}{6}", "prompt": "What is the sum of the reciprocals of the squares of all positive integers?"}
+{"id": "latex-010", "type": "latex", "gold": "2\\sqrt{3}", "prompt": "How far apart are opposite corners of a cube of side length 2?"}
+{"id": "latex-011", "type": "latex", "gold": "\\frac{\\sqrt{2}}{2}", "prompt": "What is the exact value of the cosine of 45 degrees?"}
+{"id": "latex-012", "type": "latex", "gold": "4\\pi", "prompt": "What is the surface area of a sphere of radius 1?"}
+{"id": "latex-013", "type": "latex", "gold": "-\\frac{1}{2}", "prompt": "What is the exact value of the cosine of 120 degrees?"}
+{"id": "latex-014", "type": "latex", "gold": "1 + \\sqrt{2}", "prompt": "What is the exact value of the silver ratio?"}

@@ -1,5 +1,11 @@
 # misgrade as a GitHub Action (composite). Owner: builder D.
-# Skeleton: the inputs and the run step are in place; misgrade audit is not implemented yet.
+#
+# Inputs reach the scripts only through environment variables: no ${{ }} expression is ever
+# interpolated into a run: script (a grader path or gate text cannot inject shell code).
+#
+# Uploading SARIF to code scanning needs `permissions: security-events: write` in the calling
+# job; without it (pull requests from forks) the upload step fails without failing the action.
+# The action fails exactly when misgrade exits with a non-zero code (a --fail-on gate held: 1).
 name: misgrade
 description: Audit a grader (reward function, verifier or eval scorer) with answers certified equivalent to the gold and answers certified wrong. No model calls, no API key.
 author: Mohammad Hijjawi
@@ -32,12 +38,20 @@ inputs:
     description: Maximum number of cases graded in the main and search phases.
     required: false
     default: "2000"
+  seed:
+    description: Seed for the case plan and the search (same seed, same cases).
+    required: false
+    default: "0"
+  faults:
+    description: Fault modes to check, comma-separated (repeat, order, concurrency, timeout, worker-death), or none. Empty means all.
+    required: false
+    default: ""
   fail-on:
     description: Fail the step when a condition holds, e.g. "fp_rate>0.01,self_validation_rate<1".
     required: false
     default: ""
   format:
-    description: Output formats (comma-separated).
+    description: Output formats (comma-separated); sarif is added when upload-sarif is true.
     required: false
     default: card,markdown,sarif
   output-dir:
@@ -48,6 +62,22 @@ inputs:
     description: Add the Markdown summary to the job summary.
     required: false
     default: "true"
+  upload-sarif:
+    description: Upload the SARIF file to code scanning (needs security-events write permission).
+    required: false
+    default: "true"
+  sarif-category:
+    description: The code-scanning category of the uploaded SARIF (one per audited grader).
+    required: false
+    default: misgrade
+  upload-artifact:
+    description: Upload the output directory (grader card, reports) as a workflow artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded artifact (unique per job when several audits run).
+    required: false
+    default: misgrade
   python-version:
     description: Python used to run misgrade and the grader.
     required: false
@@ -64,6 +94,12 @@ outputs:
   output-dir:
     description: The directory with the outputs.
     value: ${{ inputs.output-dir }}
+  card:
+    description: The path of the grader card, when the card format was written.
+    value: ${{ steps.audit.outputs.card }}
+  sarif:
+    description: The path of the SARIF file, when the sarif format was written.
+    value: ${{ steps.audit.outputs.sarif }}
 
 runs:
   using: composite
@@ -95,20 +131,53 @@ runs:
         MG_SEEDS: ${{ inputs.seeds }}
         MG_TEMPLATE: ${{ inputs.template }}
         MG_BUDGET: ${{ inputs.budget }}
+        MG_SEED: ${{ inputs.seed }}
+        MG_FAULTS: ${{ inputs.faults }}
         MG_FAIL_ON: ${{ inputs.fail-on }}
         MG_FORMAT: ${{ inputs.format }}
         MG_OUT: ${{ inputs.output-dir }}
         MG_STEP_SUMMARY: ${{ inputs.step-summary }}
+        MG_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
       run: |
         set -uo pipefail
-        args=(audit "$MG_GRADER" --type "$MG_TYPE" --template "$MG_TEMPLATE" --budget "$MG_BUDGET" --format "$MG_FORMAT" --out "$MG_OUT")
+        formats="$MG_FORMAT"
+        if [ "$MG_UPLOAD_SARIF" = "true" ]; then
+          case ",$formats," in *,sarif,*) ;; *) formats="$formats,sarif" ;; esac
+        fi
+        args=(audit "$MG_GRADER" --type "$MG_TYPE" --template "$MG_TEMPLATE" --budget "$MG_BUDGET" --seed "$MG_SEED" --format "$formats" --out "$MG_OUT")
         if [ -n "$MG_ADAPTER" ]; then args+=(--adapter "$MG_ADAPTER"); fi
         if [ -n "$MG_SEEDS" ]; then args+=(--seeds "$MG_SEEDS"); fi
+        if [ -n "$MG_FAULTS" ]; then args+=(--faults "$MG_FAULTS"); fi
         if [ -n "$MG_FAIL_ON" ]; then args+=(--fail-on "$MG_FAIL_ON"); fi
         status=0
         misgrade "${args[@]}" || status=$?
         echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+        if [ -f "$MG_OUT/grader-card.json" ]; then echo "card=$MG_OUT/grader-card.json" >> "$GITHUB_OUTPUT"; fi
+        if [ -f "$MG_OUT/misgrade.sarif" ]; then echo "sarif=$MG_OUT/misgrade.sarif" >> "$GITHUB_OUTPUT"; fi
         if [ "$MG_STEP_SUMMARY" = "true" ] && [ -f "$MG_OUT/misgrade-summary.md" ]; then
           cat "$MG_OUT/misgrade-summary.md" >> "$GITHUB_STEP_SUMMARY"
         fi
-        exit "$status"
+        exit 0
+
+    - name: Upload SARIF to code scanning
+      if: ${{ inputs.upload-sarif == 'true' && steps.audit.outputs.sarif != '' }}
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+      with:
+        sarif_file: ${{ steps.audit.outputs.sarif }}
+        category: ${{ inputs.sarif-category }}
+
+    - name: Upload the outputs
+      if: ${{ inputs.upload-artifact == 'true' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.output-dir }}
+        if-no-files-found: ignore
+
+    - name: Exit with misgrade's exit code
+      shell: bash
+      env:
+        MG_EXIT: ${{ steps.audit.outputs.exit-code }}
+      run: exit "${MG_EXIT:-4}"

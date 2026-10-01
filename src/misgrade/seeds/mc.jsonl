@@ -1,3 +1,12 @@
 {"id": "mc-001", "type": "mc", "gold": "B", "choices": ["3", "4", "5", "6"], "prompt": "What is 2 + 2?\nA. 3\nB. 4\nC. 5\nD. 6"}
 {"id": "mc-002", "type": "mc", "gold": "A", "choices": ["Mercury", "Venus", "Earth", "Mars"], "prompt": "Which planet is closest to the Sun?\nA. Mercury\nB. Venus\nC. Earth\nD. Mars"}
 {"id": "mc-003", "type": "mc", "gold": "D", "choices": ["4", "6", "9", "7"], "prompt": "Which of these numbers is prime?\nA. 4\nB. 6\nC. 9\nD. 7"}
+{"id": "mc-004", "type": "mc", "gold": "C", "choices": ["Oxygen", "Carbon dioxide", "Nitrogen", "Argon"], "prompt": "Which gas makes up most of the air in Earth's atmosphere?\nA. Oxygen\nB. Carbon dioxide\nC. Nitrogen\nD. Argon"}
+{"id": "mc-005", "type": "mc", "gold": "E", "choices": ["63", "64", "70", "81", "72"], "prompt": "What is 9 times 8?\nA. 63\nB. 64\nC. 70\nD. 81\nE. 72"}
+{"id": "mc-006", "type": "mc", "gold": "A", "choices": ["Yes", "No"], "prompt": "Is the Pacific Ocean larger than the Atlantic Ocean?\nA. Yes\nB. No"}
+{"id": "mc-007", "type": "mc", "gold": "C", "choices": ["7", "9", "12", "15"], "prompt": "Which of these numbers is even?\nA. 7\nB. 9\nC. 12\nD. 15"}
+{"id": "mc-008", "type": "mc", "gold": "B", "choices": ["Charlotte Bronte", "Jane Austen", "Mary Shelley", "George Eliot"], "prompt": "Who wrote the novel Pride and Prejudice?\nA. Charlotte Bronte\nB. Jane Austen\nC. Mary Shelley\nD. George Eliot"}
+{"id": "mc-009", "type": "mc", "gold": "D", "choices": ["Ag", "Gd", "Go", "Au"], "prompt": "What is the chemical symbol for gold?\nA. Ag\nB. Gd\nC. Go\nD. Au"}
+{"id": "mc-010", "type": "mc", "gold": "A", "choices": ["0", "32", "100", "-10"], "prompt": "At sea level, at what temperature in degrees Celsius does water freeze?\nA. 0\nB. 32\nC. 100\nD. -10"}
+{"id": "mc-011", "type": "mc", "gold": "B", "choices": ["5", "6", "7", "8"], "prompt": "How many sides does a hexagon have?\nA. 5\nB. 6\nC. 7\nD. 8"}
+{"id": "mc-012", "type": "mc", "gold": "C", "choices": ["Shark", "Trout", "Dolphin", "Octopus"], "prompt": "Which of these animals is a mammal?\nA. Shark\nB. Trout\nC. Dolphin\nD. Octopus"}

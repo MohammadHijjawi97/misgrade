@@ -10,9 +10,9 @@ extractors), an OpenAI grader or a promptfoo assertion, or any plain function
 as the gold, rejects answers that are provably wrong, and does not change its verdicts under
 runtime faults.
 
-> **Status: pre-alpha, under construction.** This repository holds the design and the skeleton:
-> the data model, the interfaces and the tests that pin them. The checks below are being built;
-> nothing in this README has been measured with misgrade yet. See [docs/design.md](docs/design.md).
+> **Status: pre-alpha, under construction.** The parts are being built in parallel (see
+> [docs/design.md](docs/design.md)); nothing is on PyPI yet, and nothing in this README has been
+> measured with misgrade yet.
 
 ## Why
 
@@ -46,7 +46,7 @@ minimized to the fewest rewrites that still show it. Rates come with their count
 Wilson intervals, per category, with the pattern of errors (which categories fail) and, for
 several graders, a disagreement matrix.
 
-## Planned interfaces
+## Use
 
 ```bash
 pip install misgrade        # not on PyPI yet
@@ -54,7 +54,7 @@ pip install misgrade        # not on PyPI yet
 misgrade audit my_rewards.py:compute_score --type number --template boxed \
     --format card,html,sarif,pytest --fail-on 'fp_rate>0.01,self_validation_rate<1'
 misgrade compare verl_score.py:compute_score math_verify_score.py:score --type latex
-misgrade list operators --type mc
+misgrade list-transforms --type mc
 misgrade selftest
 ```
 
@@ -65,15 +65,34 @@ result = misgrade.audit("my_rewards.py:compute_score", answer_type="number")
 print(f"{result.summary.fp.k}/{result.summary.fp.n} wrong answers accepted")
 ```
 
-Also: a pytest plugin (the `misgrade_audit` fixture), an MCP server so a coding agent can audit
-the reward function it just wrote (`misgrade mcp`), a GitHub Action and a pre-commit hook.
-Outputs: a grader card (JSON, with a [schema](src/misgrade/schema/grader-card.schema.json)), an
-HTML report, JUnit, SARIF, an SVG badge, a ready-to-commit pytest file of minimized
-counterexamples, and suggested hardening patches.
+```python
+# with the pytest plugin (installed with misgrade)
+@pytest.mark.misgrade(answer_type="number")
+def test_reward_function(misgrade_conforms):
+    misgrade_conforms("my_rewards.py:compute_score", fail_on="fp>0")
+```
+
+Also an MCP server, so a coding agent can audit the reward function it just wrote
+(`pip install "misgrade[mcp]"`, then `misgrade mcp`), a GitHub Action that uploads SARIF and the
+grader card, and a pre-commit hook. Outputs: a grader card (JSON, with a
+[schema](src/misgrade/schema/grader-card.schema.json)), an HTML report, JUnit, SARIF, an SVG badge,
+a ready-to-commit pytest file of minimized counterexamples, and suggested hardening patches.
+Exit codes: 0 ok, 1 a `--fail-on` condition held, 2 usage, 3 the grader could not be loaded,
+4 internal error. Everything is in [docs/interfaces.md](docs/interfaces.md).
 
 Graders run in a separate process with timeouts that work the same on Linux, macOS and Windows.
 Adapters import no framework at install time (no torch, no ray); optional extras install them
-when you want misgrade to load a framework's own graders by name.
+when you want misgrade to load a framework's own graders by name. misgrade makes no model calls
+and needs no API key.
+
+## Is misgrade itself right?
+
+`misgrade selftest` audits 31 planted graders, each with one bug modelled on a real one (at least
+one per category and fault mode), and 8 clean reference graders written independently of
+misgrade's certifiers. CI requires every planted bug to be reported in its own category and no finding on
+the clean graders, on Linux, macOS and Windows. What that does and does not show:
+[docs/selftest.md](docs/selftest.md). A finding you think is wrong, or a grader bug misgrade
+missed, is worth an issue.
 
 ## Development
 
@@ -81,4 +100,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/design.md](docs/design.md).
 
 ## License
 
-MIT. The bundled seed items are misgrade's own, hand-written, under the same license.
+MIT. The bundled seed items are misgrade's own, hand-written, under the same license; no
+third-party dataset is included.

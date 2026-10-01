@@ -557,4 +557,77 @@ leaves `elapsed_s` out of verdicts so cards diff cleanly.
 
 ### 11.D Interfaces, self-test, seeds
 
-_No notes yet._
+**Additions beyond section 5 (no contract signature changed).** The task that started this
+branch named a few interfaces differently from section 5; D provides both sets:
+
+- CLI: the section 5 subcommands, plus `matrix` (an alias of `compare`), `list-transforms`
+  (`list operators` with `--type` / `--kind`), `card RESULT.json`, `minimize RESULT.json` and
+  `version [--json]`; `--format none` (no files, used by the pre-commit hook),
+  `--fault-budget`, `--minimize-budget`; unexpected exceptions exit 4 with the traceback.
+- MCP tools: `audit_grader`, `list_operators`, `explain_category` (section 5) plus
+  `list_transforms` (alias) and `explain_finding`. misgrade errors become the SDK's
+  `ToolError`, so the agent sees the message. mcp 2.x diverts fd 1 while serving stdio, so a
+  grader that prints cannot corrupt the protocol.
+- pytest plugin: `misgrade_audit` (section 5) plus `misgrade_conforms` and `assert_conforms`
+  (fail the test when a gate holds, default `findings>0`), marker keywords as per-test audit
+  defaults, `--misgrade-fail-on`.
+- `misgrade.api.poison_cases(items, planned, config)`: the `timeout` check's poison is the
+  planned pathological cases, or, when none were planned (excluded, or over budget), the items'
+  pathological cases generated for that purpose only. `audit` passes poison only when
+  `timeout` is among the fault modes.
+- `misgrade.selftest.run_graders(names, *, budget, seed, progress, audit)` behind
+  `run_selftest` (`--only`, progress lines, a fake audit in tests) and `selftest_config`.
+
+**Contract change proposal (for the integrator, optional).** Pin the extra names above in
+section 5 and `tests/contract/test_interfaces.py`: CLI subcommands `matrix`,
+`list-transforms`, `card`, `minimize`, `version`; MCP tools `list_transforms`,
+`explain_finding`; `api.poison_cases`; `selftest.run_graders`. Nobody else codes against them
+yet, so nothing breaks if this is not done.
+
+**Self-test design** (docs/selftest.md). Planted graders are the reference reading
+(`selftest/reference.py`, stdlib only, no `misgrade.transforms`, no sympy) plus one bug.
+Variant/mutant planted graders are audited on the main phase only; fault planted graders on the
+main phase plus their one mode, with `pathological` excluded from the main phase so the
+clean-run reference is undisturbed. Clean graders get everything (search, minimization, all
+fault modes). `tests/selftest/test_catalogue.py` checks recall and false alarms against D's
+own hand-written catalogue of rewrites (about 1900 variants and 1900 mutants over the seed
+items), so the self-test is meaningful before A's operators land; the integration self-test
+(`tests/selftest/test_registries.py`) is the real check after the merge.
+
+**What the self-test assumes of A** (please keep, or tell D):
+
+- Every category has an operator for the types listed in docs/selftest.md (for example
+  `thousands-separator` on numbers of 1000 or more, `unicode-form` on number, latex, interval,
+  set, string; `mc-form` such as `(B)`; `bool-form` such as `True`; `prompt-echo` for mc and
+  bool items, whose prompts list the options or "true or false").
+- Pathological mutants for number and latex look expensive in one of these ways, which the
+  planted `overflow-is-accept` and `breaks-after-timeout` recognize: a tower of powers
+  (`10^{10^{10}}`), an exponent of 3+ digits, a run of 50+ digits, an `e` exponent of 3+
+  digits, a factorial of a 3+ digit number, bracket nesting 6+ deep, or 300+ characters.
+- Mutants are certified different from the gold as a value: an `injection` or `master-key`
+  mutant carries a wrong answer or none (the clean graders reject both), never the gold plus
+  extra text.
+
+**What the self-test assumes of B** (the fault planted graders, `selftest/planted.py`):
+
+- `repeat` grades a sampled case at least twice in one worker; `order` uses a fresh worker and
+  another order; `concurrency` calls from threads other than the worker's main thread while
+  ordinary calls run in the main thread.
+- `timeout`: the planted grader hangs 1 s on the poison (its own time limit) and stays broken
+  in place; if the runner kills it mid-call instead, the replacement process finds a stale
+  marker and is broken. Either way, please re-grade the sample after the poison call even when
+  the poison did not produce a runner `timeout` verdict.
+- `worker-death`: the planted grader starts a helper child with the spawn context (visible in
+  `multiprocessing.active_children()` inside the worker) and scores 0 once it is dead; if the
+  worker itself is killed, its replacement finds a stale marker. Workers must therefore not be
+  daemonic (graders such as verl reward pools start children), and the worker should end
+  through `multiprocessing`'s normal exit path on `close()` (the marker is removed by a
+  `multiprocessing.util.Finalize`).
+- The `callable` adapter calls a two-argument function as `fn(answer, gold)`.
+
+**What D uses of C:** `print_summary`, `write_outputs` (`card`, `markdown` writers),
+`build_card`, `parse_gate` / `evaluate_gate` (`GateResult.held` and `.unmeasured` lines are
+printed as they are), `minimize_finding`, `summarize`, `disagreement`. When no `markdown`
+writer is registered the MCP payload falls back to a short summary of its own.
+
+**Bugs found in others' files:** none so far.
