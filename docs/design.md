@@ -380,7 +380,66 @@ _No notes yet._
 
 ### 11.C Statistics, minimization, search, outputs
 
-_No notes yet._
+Reference for users: `docs/card.md` (counting, minimization, search, gates, every format).
+
+**Counting decisions** (where sections 4-5 leave room; all use `decision`, `classify` and
+`fault_changed`, nothing is re-implemented):
+
+- `errors` counts every call without a score (error, timeout, crash) in every phase, also
+  under `errors_as_reject`, which only turns them into rejections in the rates.
+- `fault`: a fault-phase observation is *compared* when its reference is ok **and its own call
+  did not time out**. `fault_changed` says a timeout is no change; it is no evidence of "same"
+  either, so it is left out of the denominator too (the same treatment as a failed call in
+  the main rates). The `stats.py` docstring says so.
+- `not_evaluable` counts every non-identity main-phase variant with a decision whose item's
+  identity case was not accepted (rejected, failed, or not graded at all), accepted or not.
+- `by_category` has a row for every non-identity category with a main-phase case, also when
+  its `n` is 0 (every call failed, or every variant was not evaluable): the row says the
+  category was tried.
+- `pattern` includes self-validation findings (category `identity`); fault findings are left
+  out, as the stub's docstring says.
+- `disagreement` is pairwise (`compared[i][j]` = case ids both decided), as the
+  `DisagreementMatrix` docstring says; the diagonal is each grader's decided cases.
+- Gate counts (`fp`, `fn`, `self_validation`) are findings of that kind from the pattern
+  profile, so they include search-phase findings, and never fewer than the rate's numerator;
+  `faults` is `summary.fault.k`; `findings` is their sum.
+
+**Minimization and search.** `ddmin` follows Zeller and Hildebrandt: the empty sequence is
+assumed to pass and is never tested. `minimize_finding` therefore tries a false positive's bare
+mutant operator first, then runs ddmin over the rest; `max_tests` counts grader calls (chains
+`rebuild` rejects are free, nothing is graded twice). `search_compositions` skips variant chains
+when the item's identity was not accepted, uses the random engine inside a running Hypothesis
+test (Hypothesis does not nest), and bounds its draws to `30 * budget + 100`.
+
+**Extra public names** (not pinned, safe to use): `stats.identity_verdicts`,
+`card.ordered_findings`, `card.expected_decision`, `card.CARD_SCHEMA_URL`,
+`search.engine_name`, `search.ENGINE_ENV` (`MISGRADE_SEARCH_ENGINE=random|hypothesis|auto`),
+`outputs.advice.ADVICE` / `advice_for`, `outputs.markdown.render_markdown(result,
+max_findings=)` (for MCP replies), `outputs.sarif.sarif_log`, and the `render_*` function of
+each writer module.
+
+**Schema.** Added two optional properties to `shownCase` (`category`, `certificate`: the
+minimized case's own certificate). Optional additions need no `card_version` bump. The card
+writes the resolved template (a preset name would fail the schema's `{answer}` pattern) and
+leaves `elapsed_s` out of verdicts so cards diff cleanly.
+
+**Proposals and notes for the others:**
+
+1. *Contract change (models + B):* record the grader spec's `options` in the result
+   (`GraderInfo.options` or `AuditResult.spec`). Without them the `pytest` writer cannot
+   rebuild non-`callable` graders exactly; it writes an `OPTIONS = {}` placeholder for the
+   user to fill in. Affects `models.py` (contract) and B (fills it from the spec).
+2. *D:* record `misgrade.search.engine_name()` in `AuditResult.environment` (key `search`):
+   the Hypothesis and random engines draw different chains, so results with the same seed
+   differ between environments with and without Hypothesis.
+3. *D:* `cli._finish` prints `GateResult.held` only; printing `GateResult.unmeasured` too
+   (e.g. "fault_rate>0: not measured") tells users when a condition could not be checked.
+4. *D:* for MCP replies and the GitHub job summary, `render_markdown(result,
+   max_findings=N)` keeps replies short.
+5. *Everyone:* the generated `pytest` file calls a `callable` grader as `grader(response,
+   gold)` and reads its return value with the `coerce_score` rules of the B stub's
+   docstring. If B's callable adapter passes extra keyword arguments (prompt, choices), the
+   writer's `_loader_direct` should do the same; tell builder C.
 
 ### 11.D Interfaces, self-test, seeds
 
