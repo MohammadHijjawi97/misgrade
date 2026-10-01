@@ -96,3 +96,118 @@ jobs:
           grep -q "misgrade/py.typed" contents.txt
 
   # Builder D appends the selftest, action and pre-commit jobs below this line.
+
+  selftest:
+    # 100% recall on the planted bugs and no finding on the clean graders, as a user runs it.
+    name: selftest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install .
+      - run: misgrade selftest --json selftest.json
+      - name: Self-test in the job summary
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          if [ -f selftest.json ]; then
+            python -c "import json; d = json.load(open('selftest.json')); print(f\"Self-test: {d['planted_detected']}/{d['planted_total']} planted bugs detected; {d['clean_false_alarms']}/{d['clean_total']} clean graders with a false alarm\")" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  action:
+    # The composite action from this checkout: a clean grader passes a strict gate, a planted
+    # bug fails it, and the outputs are where the action says.
+    name: GitHub Action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Audit a clean grader
+        id: clean
+        uses: ./
+        with:
+          grader: misgrade.selftest.clean:number_grader
+          type: number
+          budget: "150"
+          faults: none
+          fail-on: findings>0
+          format: card,markdown,sarif,result
+          output-dir: out-clean
+          upload-sarif: "false"
+          artifact-name: misgrade-clean
+          python-version: "3.13"
+      - name: Audit a planted bug
+        id: planted
+        continue-on-error: true
+        uses: ./
+        with:
+          grader: misgrade.selftest.planted:loose_tolerance
+          type: number
+          budget: "150"
+          faults: none
+          fail-on: fp>0
+          output-dir: out-planted
+          upload-sarif: "false"
+          artifact-name: misgrade-planted
+          python-version: "3.13"
+      - name: Check exit codes and outputs
+        shell: bash
+        env:
+          CLEAN_EXIT: ${{ steps.clean.outputs.exit-code }}
+          CLEAN_CARD: ${{ steps.clean.outputs.card }}
+          PLANTED_EXIT: ${{ steps.planted.outputs.exit-code }}
+          PLANTED_OUTCOME: ${{ steps.planted.outcome }}
+        run: |
+          set -euo pipefail
+          test "$CLEAN_EXIT" = 0
+          test "$CLEAN_CARD" = out-clean/grader-card.json
+          test -s out-clean/grader-card.json
+          test -s out-clean/misgrade.sarif
+          test -s out-clean/misgrade-result.json
+          test "$PLANTED_EXIT" = 1
+          test "$PLANTED_OUTCOME" = failure
+          test -s out-planted/misgrade.sarif
+
+  pre-commit:
+    # The hook from this checkout, in a fresh repository, as a user's config would run it.
+    name: pre-commit hook
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip pre-commit
+      - name: Run misgrade-audit from this checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          rev="$(git rev-parse HEAD)"
+          work="$(mktemp -d)"
+          cd "$work"
+          git init -q
+          git config user.email ci@example.invalid
+          git config user.name ci
+          cat > .pre-commit-config.yaml <<EOF
+          repos:
+            - repo: $GITHUB_WORKSPACE
+              rev: $rev
+              hooks:
+                - id: misgrade-audit
+                  args: [misgrade.selftest.clean:number_grader, --type=number, --budget=100, --faults=none, "--fail-on=findings>0"]
+          EOF
+          git add .pre-commit-config.yaml
+          pre-commit run --all-files
+          test ! -e misgrade-out
+          sed -i 's/clean:number_grader/planted:loose_tolerance/; s/findings>0/fp>0/' .pre-commit-config.yaml
+          git add .pre-commit-config.yaml
+          if pre-commit run --all-files; then
+            echo "the hook passed a planted bug" >&2
+            exit 1
+          fi

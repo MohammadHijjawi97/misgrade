@@ -247,7 +247,11 @@ def _add_audit_options(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_output_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--format", default=DEFAULT_FORMATS, help="comma-separated formats")
+    parser.add_argument(
+        "--format",
+        default=DEFAULT_FORMATS,
+        help="comma-separated formats (see: misgrade list formats), or none to write no file",
+    )
     parser.add_argument("--out", default=DEFAULT_OUT, type=Path, help="output directory")
     parser.add_argument("--fail-on", help="e.g. 'fp_rate>0.01,self_validation_rate<1'")
     parser.add_argument("--quiet", action="store_true", help="no summary on the terminal")
@@ -317,8 +321,10 @@ def _finish(args: argparse.Namespace, result: AuditResult, out: Console) -> int:
         from misgrade.outputs.console import print_summary
 
         print_summary(result, out)
-    for fmt, path in write_outputs(result, _split(args.format), args.out).items():
-        out.print(escape(f"{fmt}: {path}"))
+    formats = [] if args.format.strip() == "none" else _split(args.format)
+    if formats:
+        for fmt, path in write_outputs(result, formats, args.out).items():
+            out.print(escape(f"{fmt}: {path}"))
     if gate is None:
         return ExitCode.OK
     outcome = evaluate_gate(gate, result.summary)

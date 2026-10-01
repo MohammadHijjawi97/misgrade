@@ -473,3 +473,9 @@ def test_findings_identity_helpers_are_consistent() -> None:
     assert "false-positive:number-001::number.plus-one" in ids
     assert any(f.kind is FindingKind.FAULT for f in sample_result().findings)
     assert accept().accepted
+
+
+def test_format_none_writes_nothing(audits: list[dict[str, Any]], tmp_path: Path) -> None:
+    out = tmp_path / "never"
+    assert main(["audit", "m:f", "--format", "none", "--out", str(out), "--quiet"]) == ExitCode.OK
+    assert not out.exists()
