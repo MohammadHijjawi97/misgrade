@@ -12,6 +12,14 @@ All notable changes to misgrade are listed here. The format follows
   certificates, verdicts, findings, summary, result), the classification rule, registries, the
   grader card JSON Schema, typed stubs for every part, the CLI, pytest plugin and MCP entry
   points, bundled starter seed items, and CI on Linux, macOS and Windows (Python 3.10-3.13).
+- The audit pipeline wired end to end: `misgrade audit` resolves the grader, generates certified
+  cases, grades them in a spawned worker, searches and minimizes, runs the fault checks and
+  writes every output. The result and the card record the grader's adapter options, so the
+  pytest regression file rebuilds the grader exactly; a lambda or closure passed to
+  `misgrade.audit` is graded in-process; the search engine is recorded in the environment.
+- Math-delimiter wrappers (`$...$`, `\(...\)`, `\[...\]`, ...) are no longer applied when the
+  response template already puts the answer in math mode (`\boxed{{answer}}`, `${answer}$`),
+  where TeX does not allow them.
 
 <!-- A: transforms, mutants, type detection (add bullets directly below this line) -->
 - 94 variant operators in 13 categories (whitespace, punctuation, letter case, LaTeX wrappers

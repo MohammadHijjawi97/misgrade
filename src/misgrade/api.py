@@ -26,7 +26,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 
-from misgrade.adapters import resolve_spec
+from misgrade.adapters import in_process_only, resolve_spec
 from misgrade.errors import ConfigError
 from misgrade.minimize import minimize_finding
 from misgrade.models import (
@@ -39,6 +39,7 @@ from misgrade.models import (
     FaultMode,
     Finding,
     GraderSpec,
+    Isolation,
     Item,
     Observation,
     Verdict,
@@ -47,7 +48,7 @@ from misgrade.models import (
 )
 from misgrade.runner import grade_cases, open_session
 from misgrade.runner.faults import run_fault_checks
-from misgrade.search import search_compositions
+from misgrade.search import engine_name, search_compositions
 from misgrade.seeds import load_seeds
 from misgrade.stats import disagreement, summarize
 from misgrade.transforms import applicable_ops, apply_chain, generate_cases
@@ -85,6 +86,10 @@ def audit(
     ``config``. Raises :class:`~misgrade.errors.GraderLoadError` when the grader cannot be
     loaded and :class:`~misgrade.errors.ConfigError` for bad options; grader failures on
     individual calls are recorded in the result, never raised.
+
+    A grader that exists only in this process (a lambda, a closure, an instance) cannot be
+    imported by a spawned worker: it is graded in this process (``Isolation.NONE``, recorded
+    in the result's config), and the ``worker-death`` fault check is skipped.
     """
     cfg = _with_overrides(
         config or AuditConfig(),
@@ -103,6 +108,10 @@ def audit(
             name=name,
         )
     )
+    if in_process_only(spec) and cfg.run.isolation is Isolation.SUBPROCESS:
+        # A lambda, closure or instance exists only in this process: no spawned worker can
+        # import it, so it is graded here (the worker-death fault check is then skipped).
+        cfg = replace(cfg, run=replace(cfg.run, isolation=Isolation.NONE))
     pool = _items(items, cfg)
     tmpl = resolve_template(cfg.template)
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -173,6 +182,10 @@ def audit(
         findings.extend(_findings(fault_obs, identity, cfg))
 
     summary = summarize(observations, findings, errors_as_reject=cfg.errors_as_reject)
+    env = environment()
+    if cfg.search:
+        # The two search engines draw different chains from the same seed.
+        env["search"] = engine_name()
     return AuditResult(
         grader=info,
         config=cfg,
@@ -183,7 +196,7 @@ def audit(
         misgrade_version=_misgrade_version(),
         started_at=started_at,
         duration_s=round(time.perf_counter() - clock, 3),
-        environment=environment(),
+        environment=env,
     )
 
 

@@ -30,7 +30,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.needs(*PIPELINE)]
 
 PLANTED = "misgrade.selftest.planted:loose_tolerance"
 CLEAN = "misgrade.selftest.clean:number_grader"
-QUICK = ["--type", "number", "--budget", "120", "--faults", "none", "--quiet"]
+QUICK = ["--type", "number", "--budget", "200", "--faults", "none", "--quiet"]
+"""A budget of 200 leaves room for the near-miss cases ``loose_tolerance`` accepts (+-1 and a
+flipped sign; most near misses, such as x10, are outside its tolerance) among the 18
+categories that apply to numbers."""
 
 
 def _result(out: Path) -> AuditResult:
@@ -75,6 +78,19 @@ def test_a_grader_that_cannot_be_loaded_exits_3(tmp_path: Path) -> None:
     assert code == ExitCode.GRADER_ERROR
 
 
+def test_a_lambda_is_audited_in_process() -> None:
+    from misgrade.api import audit
+    from misgrade.models import AnswerType, AuditConfig, FaultMode, Isolation
+    from misgrade.seeds import load_seeds
+
+    items = load_seeds(AnswerType.NUMBER)[:3]
+    config = AuditConfig(budget=40, faults=(FaultMode.REPEAT,), fault_budget=10)
+    result = audit(lambda answer, gold: float(answer == gold), items, config=config)
+    assert result.config.run.isolation is Isolation.NONE
+    assert any(f.kind is FindingKind.FALSE_NEGATIVE for f in result.findings)
+    assert result.environment["search"].split()[0] in ("random", "hypothesis")
+
+
 def test_minimize_later_and_card(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     first = tmp_path / "first"
     args = ["audit", PLANTED, *QUICK, "--no-minimize", "--format", "result", "--out", str(first)]
@@ -115,7 +131,7 @@ def test_compare(tmp_path: Path) -> None:
 def test_mcp_audit_grader_and_explain_finding() -> None:
     from misgrade import mcp_server
 
-    payload = mcp_server.audit_grader(PLANTED, answer_type="number", budget=80, faults="none")
+    payload = mcp_server.audit_grader(PLANTED, answer_type="number", budget=200, faults="none")
     assert payload["card"]["card_version"] == 1
     near_miss = [f for f in payload["findings"] if f["category"] == "near-miss"]
     assert near_miss

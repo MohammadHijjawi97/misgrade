@@ -25,7 +25,7 @@ GRADER = "C:\\Users\\Me\\rewards\\math rewards.py:compute_score"
 """The grader audited (verl adapter)."""
 ADAPTER = "verl"
 OPTIONS: dict[str, Any] = {}
-"""The adapter options the audit used (not recorded in the result: fill in if any)."""
+"""The adapter options the audit used."""
 THRESHOLD = 0.5
 """A score at or above it is an acceptance (the audit's accept_threshold)."""
 

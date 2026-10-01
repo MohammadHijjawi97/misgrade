@@ -218,3 +218,43 @@ def test_the_selftest_graders_do_not_import_transforms_or_sympy() -> None:
         "assert not loaded, loaded\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+CHOICES = ["3", "4", "5", "6"]
+
+
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        ("B", 1.0),
+        ("B. 4", 1.0),
+        ("(B) 4", 1.0),
+        ("**B**", 1.0),
+        ("B. 5", 0.0),  # the gold label with the text of option C names two options
+        ("B) 6", 0.0),
+        ("C", 0.0),
+    ],
+)
+def test_mc_grader_reads_option_text_when_it_has_the_choices(
+    response: str, expected: float
+) -> None:
+    assert clean.mc_grader(response, "B", choices=CHOICES) == expected
+
+
+def test_mc_text_conflict_edges() -> None:
+    assert not ref.mc_text_conflict("B. 5", "B", None)  # nothing to compare with
+    assert not ref.mc_text_conflict("B. 5", "Z", CHOICES)  # not a label of these choices
+    places = ["York", "New York", "Boston"]
+    assert not ref.mc_text_conflict("B. New York", "B", places)  # contains option A's text
+    assert ref.mc_text_conflict("B. Boston", "B", places)
+    assert not ref.mc_text_conflict("A. 12", "A", ["12", "2"])  # 2 inside 12 is not option B
+    assert not ref.mc_text_conflict("A. --", "A", ["x", "--"])  # no letters or digits
+
+
+@pytest.mark.parametrize(
+    "opener",
+    ["Let's think step by step.", "Let’s think step by step.", "Let us think step-by-step."],
+)
+def test_string_grader_ignores_a_content_free_reasoning_opener(opener: str) -> None:
+    assert clean.string_grader(f"{opener}\n\nThe answer is Jupiter.", "Jupiter") == 1.0
+    assert clean.string_grader(f"{opener}\n\nThe answer is Saturn.", "Jupiter") == 0.0

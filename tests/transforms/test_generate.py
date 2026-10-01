@@ -266,3 +266,42 @@ def test_catalog_size() -> None:
     variants = list_operators(kind=CaseKind.VARIANT)
     mutants = list_operators(kind=CaseKind.MUTANT)
     assert len(variants) >= 30 and len(mutants) >= 30
+
+
+@pytest.mark.parametrize(
+    ("template", "in_math"),
+    [
+        ("{answer}", False),
+        ("#### {answer}", False),
+        ("<answer>{answer}</answer>", False),
+        ("Final answer: {answer}", False),
+        ("\\boxed{{answer}}", True),
+        ("The answer is $\\boxed{{answer}}$.", True),
+        ("${answer}$", True),
+        ("$${answer}$$", True),
+        ("\\({answer}\\)", True),
+        ("\\[{answer}\\]", True),
+        ("$x$ so {answer}", False),
+        ("\\boxed{x} then {answer}", False),
+        ("costs \\$5, so {answer}", False),
+        ("\\\\ {answer}", False),
+    ],
+)
+def test_slot_in_math(template: str, in_math: bool) -> None:
+    from misgrade.transforms.generate import slot_in_math
+
+    assert slot_in_math(template) is in_math
+
+
+def test_math_delimiters_are_not_nested_in_a_math_template() -> None:
+    from misgrade.transforms.generate import MATH_DELIMITER_OPS
+
+    item = Item(id="x", gold="0.5", answer_type=AnswerType.NUMBER)
+    for name in sorted(MATH_DELIMITER_OPS):
+        assert OPERATORS.get(name).scope is Scope.ANSWER
+        assert apply_chain(item, [name]) is not None  # the plain template takes them
+        for template in ("\\boxed{{answer}}", "Final Answer: ${answer}$."):
+            assert apply_chain(item, [name], template=template) is None, (name, template)
+    boxed = {case.ops for case in generate_cases(item, template="\\boxed{{answer}}")}
+    assert ("latex.boxed",) in boxed  # \boxed{\boxed{0.5}} is valid TeX
+    assert not any(ops and ops[0] in MATH_DELIMITER_OPS for ops in boxed)

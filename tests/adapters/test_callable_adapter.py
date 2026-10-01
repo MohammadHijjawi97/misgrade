@@ -21,6 +21,7 @@ def test_answer_then_gold() -> None:
 
 def test_gold_first_order() -> None:
     grader = load("callable", toy("gold_first"), argument_order="gold-answer")
+    assert grader.info.options == {"argument_order": "gold-answer"}  # recorded for rebuilding
     assert grader.grade(request("42 ")) == 1.0
     assert grader.grade(request("42", gold="swap-check")) == 0.0
     with pytest.raises(GraderLoadError, match="argument_order must be one of"):

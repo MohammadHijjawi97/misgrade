@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import inspect
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -102,12 +103,33 @@ def _score(raw: object) -> float:
     raise TypeError(f"the grader returned {raw!r}, not a score")
 
 
+def _keywords(function: Any) -> set[str]:
+    """The extra arguments the grader names (the adapter passes them by name)."""
+    try:
+        parameters = list(inspect.signature(function).parameters.values())
+    except (TypeError, ValueError):
+        return set()
+    kinds = inspect.Parameter
+    positional = [p.name for p in parameters if p.kind <= kinds.POSITIONAL_OR_KEYWORD]
+    by_name = (kinds.POSITIONAL_OR_KEYWORD, kinds.KEYWORD_ONLY)
+    names = {p.name for p in parameters if p.kind in by_name} - set(positional[:2])
+    return names & {"prompt", "choices", "meta", "answer_type"}
+
+
 @pytest.fixture(scope="module")
 def grade() -> Callable[[str, dict[str, Any]], float]:
     grader = _load(GRADER)
+    wanted = _keywords(grader)
 
     def call(response: str, item: dict[str, Any]) -> float:
-        return _score(grader(response, item["gold"]))
+        extras = {
+            "prompt": item.get("prompt"),
+            "choices": item.get("choices"),
+            "meta": item.get("meta", {}),
+            "answer_type": item["type"],
+        }
+        keywords = {name: extras[name] for name in wanted}
+        return _score(grader(response, item["gold"], **keywords))
 
     return call
 

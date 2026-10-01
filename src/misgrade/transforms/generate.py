@@ -27,13 +27,19 @@ Two further rules keep compositions honest:
   certified raises :class:`~misgrade.errors.CertificationError` (an operator bug). In a longer
   chain a step that cannot be certified only makes the chain invalid: an operator may meet text
   it was not written for.
+- When the template already puts the answer in math mode (inside ``\\boxed{}``, ``$...$``,
+  ``$$...$$``, ``\\(...\\)`` or ``\\[...\\]``), the answer-scope wrappers that open math mode
+  (:data:`MATH_DELIMITER_OPS`) do not apply: TeX does not allow math delimiters inside math,
+  so ``\\boxed{\\[0.5\\]}`` cannot be certified equivalent by construction.
 
 Items whose gold is empty or whitespace get only their identity case.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
+from typing import Final
 
 from misgrade.errors import CertificationError
 from misgrade.models import (
@@ -52,7 +58,64 @@ from misgrade.models import (
 from misgrade.transforms.certify import Step, certify_step, merge_steps, strict
 from misgrade.transforms.registry import OPERATORS, Operator, Scope, list_operators
 
-__all__ = ["applicable_ops", "apply_chain", "chain_problem", "generate_cases"]
+__all__ = [
+    "MATH_DELIMITER_OPS",
+    "applicable_ops",
+    "apply_chain",
+    "chain_problem",
+    "generate_cases",
+    "slot_in_math",
+]
+
+MATH_DELIMITER_OPS: Final = frozenset(
+    {
+        "latex.boxed-dollars",
+        "latex.bracket",
+        "latex.dollars",
+        "latex.double-dollars",
+        "latex.paren",
+    }
+)
+"""Answer-scope wrappers that open TeX math mode (not applied when the template's answer slot
+is already in math mode)."""
+
+_MATH_TOKENS: Final = re.compile(r"\\\\|\\\$|\$\$|\$|\\\(|\\\)|\\\[|\\\]|\\boxed\s*\{|\{|\}")
+
+
+def slot_in_math(template: str) -> bool:
+    """Whether a response template puts its ``{answer}`` slot in TeX math mode: inside
+    ``\\boxed{...}`` (an amsmath command whose argument is typeset in math mode),
+    ``$...$``, ``$$...$$``, ``\\(...\\)`` or ``\\[...\\]``."""
+    prefix = template[: max(0, template.find(ANSWER_SLOT))]
+    inline = display = False
+    paren = bracket = depth = 0
+    boxes: list[int] = []
+    for match in _MATH_TOKENS.finditer(prefix):
+        token = match.group()
+        if token in ("\\\\", "\\$"):
+            continue
+        if token == "$$":
+            display = not display
+        elif token == "$":
+            inline = not inline
+        elif token == "\\(":
+            paren += 1
+        elif token == "\\)":
+            paren = max(0, paren - 1)
+        elif token == "\\[":
+            bracket += 1
+        elif token == "\\]":
+            bracket = max(0, bracket - 1)
+        elif token == "{":
+            depth += 1
+        elif token == "}":
+            depth = max(0, depth - 1)
+            if boxes and boxes[-1] > depth:
+                boxes.pop()
+        else:  # \boxed{
+            depth += 1
+            boxes.append(depth)
+    return inline or display or paren > 0 or bracket > 0 or bool(boxes)
 
 
 def generate_cases(
@@ -137,6 +200,10 @@ def chain_problem(item: Item, operators: Sequence[Operator]) -> str | None:
 def _build(
     item: Item, operators: Sequence[Operator], template: str, *, raise_on_failure: bool
 ) -> Case | None:
+    if slot_in_math(template) and any(
+        op.name in MATH_DELIMITER_OPS and op.scope is Scope.ANSWER for op in operators
+    ):
+        return None
     text = item.gold
     rendered = False
     is_value = True

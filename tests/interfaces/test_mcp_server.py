@@ -77,7 +77,8 @@ def test_audit_grader(fakes: list[dict[str, Any]], tmp_path: Path) -> None:
         "held": ["fp=1 (1/2) > 0"],
         "unmeasured": [],
     }
-    assert "4 findings in 9 grader calls on 2 items" in payload["summary_markdown"]
+    markdown = payload["summary_markdown"]
+    assert "2 items, 5 cases, 9 grader calls" in markdown and "**4 findings:**" in markdown
     first = payload["findings"][0]
     assert first["kind"] == "false-negative" and first["response"] == "42 "
     assert first["expected"] == "accept" and first["observed"] == "reject (score 0)"

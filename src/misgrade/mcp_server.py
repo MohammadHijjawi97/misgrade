@@ -261,36 +261,17 @@ def finding_summary(finding: Finding) -> dict[str, Any]:
     }
 
 
-def _rate_text(name: str, k: int, n: int) -> str:
-    return f"{name}: {k}/{n}" if n else f"{name}: not measured"
-
-
-def _fallback_markdown(result: AuditResult) -> str:
-    summary = result.summary
-    lines = [
-        f"misgrade audit of {result.grader.name}: {len(result.findings)} findings "
-        f"in {summary.calls} grader calls on {summary.items} items",
-        "- "
-        + _rate_text(
-            "identity cases accepted", summary.self_validation.k, summary.self_validation.n
-        ),
-        "- " + _rate_text("variants rejected (false negatives)", summary.fn.k, summary.fn.n),
-        "- " + _rate_text("mutants accepted (false positives)", summary.fp.k, summary.fp.n),
-        "- " + _rate_text("fault checks with a changed verdict", summary.fault.k, summary.fault.n),
-    ]
-    return "\n".join(lines) + "\n"
+MAX_MARKDOWN_FINDINGS: Final = 10
+"""Findings listed in the reply's Markdown summary (all of them, up to
+:data:`MAX_LISTED_FINDINGS`, are in its ``findings`` list)."""
 
 
 def audit_payload(result: AuditResult, *, fail_on: str | None = None) -> dict[str, Any]:
     """What ``audit_grader`` returns for a result."""
     from misgrade.card import build_card
-    from misgrade.outputs import WRITERS
+    from misgrade.outputs.markdown import render_markdown
 
-    markdown = (
-        WRITERS.get("markdown").render(result)
-        if "markdown" in WRITERS
-        else _fallback_markdown(result)
-    )
+    markdown = render_markdown(result, max_findings=MAX_MARKDOWN_FINDINGS)
     payload: dict[str, Any] = {
         "grader": result.grader.to_dict(),
         "summary_markdown": markdown,

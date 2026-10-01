@@ -8,15 +8,17 @@ the file's docstring instead.
 
 The file imports the grader under test, not misgrade:
 
-- ``callable`` adapter: ``pkg.module:function`` is imported, ``path/to/file.py:function`` is
-  loaded from the working directory or the nearest parent directory of the test file that
-  has it; the function is called as ``grader(response, gold)`` and its return value read as
-  misgrade reads it (a number, a bool, a dict with ``"score"`` or a one-element list).
-- every other adapter (verl, TRL, verifiers, lm-eval, Inspect, OpenAI graders, promptfoo):
-  their calling conventions need the adapter, so the file loads the grader with misgrade's
-  public API (``misgrade.adapters.load_grader``) and skips when misgrade is not installed.
-  The adapter options of the audit are not recorded in the result; the file has an
-  ``OPTIONS`` dict to fill in when the audit used some.
+- ``callable`` adapter without options: ``pkg.module:function`` is imported,
+  ``path/to/file.py:function`` is loaded from the working directory or the nearest parent
+  directory of the test file that has it; the function is called as the adapter calls it,
+  ``grader(response, gold)`` plus those of ``prompt``, ``choices``, ``meta`` and
+  ``answer_type`` it names as parameters, and its return value is read as misgrade reads it
+  (a number, a bool, a dict with ``"score"`` or a one-element list).
+- every other adapter (verl, TRL, verifiers, lm-eval, Inspect, OpenAI graders, promptfoo), and
+  ``callable`` with options (``argument_order``, ``kwargs``): their calling conventions need
+  the adapter, so the file loads the grader with misgrade's public API
+  (``misgrade.adapters.load_grader``) and the adapter options recorded in the result
+  (``GraderInfo.options``), and skips when misgrade is not installed.
 
 The generated source is valid Python whatever the responses contain (exact string literals)
 and stays stable under ``ruff format``.
@@ -118,21 +120,24 @@ def render_pytest(result: AuditResult) -> str:
     ]
     items = _items(cases + repeats)
     grader = result.grader
-    direct = grader.adapter == "callable"
+    direct = grader.adapter == "callable" and not grader.options
     out: list[str] = []
     out += _docstring(result, len(cases), len(repeats), others)
     out += ["", "from __future__ import annotations", ""]
-    out += ["import importlib", "import importlib.util", "import sys"] if direct else []
+    out += (
+        ["import importlib", "import importlib.util", "import inspect", "import sys"]
+        if direct
+        else []
+    )
     out += ["from collections.abc import Callable", "from pathlib import Path"] if direct else []
     out += ["from typing import Any", "", "import pytest", ""]
     out.append(f"GRADER = {_string(grader.target)}")
     out.append(f'"""The grader audited ({_doc(grader.adapter)} adapter)."""')
     if not direct:
         out.append(f"ADAPTER = {_string(grader.adapter)}")
-        out.append("OPTIONS: dict[str, Any] = {}")
-        out.append(
-            '"""The adapter options the audit used (not recorded in the result: fill in if any)."""'
-        )
+        prefix = "OPTIONS: dict[str, Any] = "
+        out.append(prefix + py_literal(dict(grader.options), 0, first=len(prefix)))
+        out.append('"""The adapter options the audit used."""')
     out.append(f"THRESHOLD = {result.config.run.accept_threshold!r}")
     out.append('"""A score at or above it is an acceptance (the audit\'s accept_threshold)."""')
     out.append("")
@@ -318,12 +323,33 @@ def _loader_direct() -> list[str]:
         '    raise TypeError(f"the grader returned {raw!r}, not a score")',
         "",
         "",
+        "def _keywords(function: Any) -> set[str]:",
+        '    """The extra arguments the grader names (the adapter passes them by name)."""',
+        "    try:",
+        "        parameters = list(inspect.signature(function).parameters.values())",
+        "    except (TypeError, ValueError):",
+        "        return set()",
+        "    kinds = inspect.Parameter",
+        "    positional = [p.name for p in parameters if p.kind <= kinds.POSITIONAL_OR_KEYWORD]",
+        "    by_name = (kinds.POSITIONAL_OR_KEYWORD, kinds.KEYWORD_ONLY)",
+        "    names = {p.name for p in parameters if p.kind in by_name} - set(positional[:2])",
+        '    return names & {"prompt", "choices", "meta", "answer_type"}',
+        "",
+        "",
         '@pytest.fixture(scope="module")',
         "def grade() -> Callable[[str, dict[str, Any]], float]:",
         "    grader = _load(GRADER)",
+        "    wanted = _keywords(grader)",
         "",
         "    def call(response: str, item: dict[str, Any]) -> float:",
-        '        return _score(grader(response, item["gold"]))',
+        "        extras = {",
+        '            "prompt": item.get("prompt"),',
+        '            "choices": item.get("choices"),',
+        '            "meta": item.get("meta", {}),',
+        '            "answer_type": item["type"],',
+        "        }",
+        "        keywords = {name: extras[name] for name in wanted}",
+        '        return _score(grader(response, item["gold"], **keywords))',
         "",
         "    return call",
     ]

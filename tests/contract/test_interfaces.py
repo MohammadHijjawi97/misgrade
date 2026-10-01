@@ -108,7 +108,41 @@ SIGNATURES: dict[str, list[str]] = {
     ],
     "misgrade.selftest:run_selftest": ["*budget", "*seed"],
     "misgrade.cli:main": ["argv"],
+    # pinned at integration (builder D's additions, design.md section 11.D)
+    "misgrade.api:poison_cases": ["items", "planned", "config"],
+    "misgrade.selftest:run_graders": ["names", "*budget", "*seed", "*progress", "*audit"],
+    "misgrade.adapters:in_process_only": ["spec"],
 }
+
+
+def test_cli_subcommands_and_mcp_tools() -> None:
+    import argparse
+
+    from misgrade.cli import build_parser
+    from misgrade.mcp_server import TOOLS
+
+    parser = build_parser()
+    (commands,) = (a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
+    assert sorted(commands.choices) == [
+        "audit",
+        "card",
+        "compare",
+        "list",
+        "list-transforms",
+        "matrix",
+        "mcp",
+        "minimize",
+        "report",
+        "selftest",
+        "version",
+    ]
+    assert [tool.__name__ for tool in TOOLS] == [
+        "audit_grader",
+        "list_operators",
+        "list_transforms",
+        "explain_category",
+        "explain_finding",
+    ]
 
 
 def _resolve(path: str) -> Any:

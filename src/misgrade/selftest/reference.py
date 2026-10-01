@@ -47,6 +47,7 @@ __all__ = [
     "json_equal",
     "json_values",
     "latex_values",
+    "mc_text_conflict",
     "mc_values",
     "normalize_unicode",
     "number_values",
@@ -675,6 +676,39 @@ def mc_values(text: str, *, case_sensitive: bool = False) -> list[str]:
     ]
 
 
+def _option_pattern(words: str) -> re.Pattern[str]:
+    """``words`` as a whole phrase: not inside a longer word or number."""
+    return re.compile(r"(?<![\w.])" + re.escape(words) + r"(?!\w)", re.IGNORECASE)
+
+
+def mc_text_conflict(text: str, gold: str, choices: Sequence[str] | None) -> bool:
+    """Whether a response quotes the text of an option other than the gold's own ("B. 5" when
+    option B is "4" and option C is "5"): it then names two different options.
+
+    The gold option's own text is removed first, so an option whose text contains another's
+    ("New York" and "York") does not conflict with itself. Without ``choices`` nothing can
+    conflict.
+    """
+    if not choices:
+        return False
+    labels = [chr(ord("A") + index) for index in range(len(choices))]
+    if gold not in labels:
+        return False
+    own = " ".join(str(choices[labels.index(gold)]).split())
+    body = " ".join(strip_markup(normalize_unicode(text)).split())
+    if own:
+        body = _option_pattern(own).sub(" ", body)
+    for label, words in zip(labels, choices, strict=True):
+        words = " ".join(str(words).split())
+        if label == gold or not any(char.isalnum() for char in words):
+            continue
+        if words.lower() == own.lower():
+            continue
+        if _option_pattern(words).search(body):
+            return True
+    return False
+
+
 def bool_values(text: str, *, case_sensitive: bool = False) -> list[str]:
     """``true`` / ``false`` named in a response, as lowercase words."""
     flags = 0 if case_sensitive else re.IGNORECASE
@@ -749,10 +783,17 @@ _FILLER: Final = frozenset(
 )  # fmt: skip
 
 
+_CONTENT_FREE_OPENER: Final = re.compile(
+    r"\blet(?:['\u2019]s| us) think (?:about it )?step[- ]by[- ]step\b", re.IGNORECASE
+)
+"""A reasoning opener that carries no answer ("Let's think step by step.")."""
+
+
 def string_tokens(text: str) -> tuple[str, ...]:
-    """The words of a response without punctuation, markup and filler words ("The final answer
-    is", "I hope it is correct"), case kept."""
-    text = strip_markup(normalize_unicode(text))
+    """The words of a response without punctuation, markup, a content-free reasoning opener
+    ("Let's think step by step.") and filler words ("The final answer is", "I hope it is
+    correct"), case kept."""
+    text = _CONTENT_FREE_OPENER.sub(" ", strip_markup(normalize_unicode(text)))
     return tuple(word for word in _WORD.findall(text) if word.lower() not in _FILLER)
 
 

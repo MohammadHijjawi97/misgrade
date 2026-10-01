@@ -66,6 +66,7 @@ def make_info(
         target=spec.target,
         source=source if source is not None else (source_location(obj) if obj else None),
         versions=dict(sorted(found.items())),
+        options=dict(spec.options),
     )
 
 

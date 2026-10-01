@@ -81,10 +81,10 @@ grader process ends cleanly and consumed by the process that finds it.
 | `reference-latex` | latex | constant LaTeX expressions (`\frac`, `\sqrt`, `\pi`, powers, implicit products), evaluated and compared with a relative tolerance of 1e-12 |
 | `reference-interval` | interval | intervals and unions, endpoint by endpoint, brackets included |
 | `reference-set` | set | set literals as sets of evaluated elements |
-| `reference-mc` | mc | standalone option labels (`B`, `(B)`, `**B**`, `B. 4`, `b`) |
+| `reference-mc` | mc | standalone option labels (`B`, `(B)`, `**B**`, `B. 4`, `b`); with the item's choices, a response that quotes another option's text (`B. 5` when B is `4`) is refused |
 | `reference-bool` | bool | `true` / `false`, case-insensitively |
 | `reference-json` | json | JSON as data with JSON's types; duplicate keys are refused |
-| `reference-string` | string | words, case kept, after markup and filler words ("The final answer is") are removed |
+| `reference-string` | string | words, case kept, after markup, a content-free opener ("Let's think step by step.") and filler words ("The final answer is") are removed |
 
 They share one reading rule (`misgrade/selftest/reference.py`): a response is accepted when it
 contains no hedging, retracting or grader-directed word ("or", "wait", "not", "grader",

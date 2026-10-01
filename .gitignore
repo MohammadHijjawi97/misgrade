@@ -17,3 +17,6 @@ coverage.xml
 htmlcov/
 # Default output directory of `misgrade audit`.
 misgrade-out/
+# Local notes on audits of third-party graders, kept out of the repository until disclosed
+# upstream.
+docs/preliminary-findings.md

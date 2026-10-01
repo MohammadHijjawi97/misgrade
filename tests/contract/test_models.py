@@ -379,6 +379,10 @@ def test_grader_spec_and_info_round_trip() -> None:
     assert GraderSpec("callable", "m:f", name="mine").display_name == "mine"
     info = GraderInfo("g", "callable", "m:f", "m.py:3", {"lib": "1.0"})
     assert GraderInfo.from_dict(info.to_dict()) == info
+    assert "options" not in info.to_dict()  # written only when there are some
+    with_options = GraderInfo("g", "verl", "m:f", options={"data_source": "gsm8k"})
+    assert with_options.to_dict()["options"] == {"data_source": "gsm8k"}
+    assert GraderInfo.from_dict(with_options.to_dict()) == with_options
 
 
 def test_rates() -> None:

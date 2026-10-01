@@ -129,6 +129,40 @@ def test_other_adapters_load_through_misgrade(pytester: pytest.Pytester, edge: A
     assert "error" not in counts
 
 
+NAMED_EXTRAS = '''
+def compute_score(answer, gold, *, answer_type, prompt=None):
+    """Needs the answer type by name, as the callable adapter passes it."""
+    assert answer_type == "number"
+    return float(answer.strip() == gold.strip())
+'''
+
+
+def test_callable_graders_get_the_extras_they_name(pytester: pytest.Pytester) -> None:
+    _write(pytester, sample_result(), NAMED_EXTRAS)
+    pytester.runpytest_subprocess("-p", "no:cacheprovider", "-q").assert_outcomes(passed=3)
+
+
+GOLD_FIRST = '''
+def verify(gold, answer):
+    """Whitespace-insensitive exact match, called as verify(gold, answer)."""
+    return float(answer.strip() == gold.strip())
+'''
+
+
+def test_callable_options_are_recorded_and_used(pytester: pytest.Pytester) -> None:
+    result = sample_result()
+    options = {"argument_order": "gold-answer"}
+    result = replace(
+        result,
+        grader=replace(result.grader, target="toy_rewards:verify", options=options),
+    )
+    source = render_pytest(result)
+    assert 'OPTIONS: dict[str, Any] = {"argument_order": "gold-answer"}' in source
+    assert "load_grader" in source
+    _write(pytester, result, GOLD_FIRST)
+    pytester.runpytest_subprocess("-p", "no:cacheprovider", "-q").assert_outcomes(passed=3)
+
+
 def test_generated_file_compiles_for_every_result(any_result: AuditResult) -> None:
     compile(render_pytest(any_result), "test_misgrade_regressions.py", "exec")
 

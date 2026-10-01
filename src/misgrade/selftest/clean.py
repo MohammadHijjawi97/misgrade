@@ -7,15 +7,19 @@ every mutant, so it is written independently of misgrade's own certifiers: it do
 value of the type, every value read equal to the gold.
 
 Each grader is a plain ``(answer, gold) -> float`` function (1.0 accept, 0.0 reject), importable
-by ``module:function`` so the runner can load it in a spawned worker. They are also usable as
-reference graders for one's own tests (``misgrade.selftest.clean:number_grader``).
+by ``module:function`` so the runner can load it in a spawned worker. ``mc_grader`` also takes
+the item's ``choices`` by name (the ``callable`` adapter passes them), to reject a gold label
+quoted with another option's text. They are also usable as reference graders for one's own
+tests (``misgrade.selftest.clean:number_grader``).
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from misgrade.models import AnswerType
 from misgrade.selftest import CLEAN, CleanGrader
-from misgrade.selftest.reference import guess_kind, verdict
+from misgrade.selftest.reference import guess_kind, mc_text_conflict, verdict
 
 __all__ = [
     "any_grader",
@@ -54,8 +58,11 @@ def set_grader(answer: str, gold: str) -> float:
     return _score("set", answer, gold)
 
 
-def mc_grader(answer: str, gold: str) -> float:
-    """Multiple-choice labels: exactly one distinct label named, equal to the gold."""
+def mc_grader(answer: str, gold: str, choices: Sequence[str] | None = None) -> float:
+    """Multiple-choice labels: exactly one distinct label named, equal to the gold, and no
+    other option's text quoted ("B. 5" when option B is "4")."""
+    if mc_text_conflict(str(answer), str(gold).strip(), choices):
+        return 0.0
     return _score("mc", answer, gold)
 
 

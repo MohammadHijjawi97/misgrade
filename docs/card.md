@@ -153,10 +153,11 @@ bumps the version). It holds:
 - `$schema`, `card_version`, `misgrade_version`, `generated_at` (the audit's start, UTC),
   `duration_s`;
 - `grader`: name, adapter, target, source (`path:line`), the versions of the libraries that
-  decide its verdicts;
+  decide its verdicts, and the adapter options it was loaded with (only when there are some);
 - `config`: the audit configuration, with the response template written out (a preset name
   such as `boxed` becomes `\boxed{{answer}}`);
-- `environment`: Python, platform, sympy;
+- `environment`: Python, platform, sympy, and the search engine (`search`: `random` or
+  `hypothesis <version>`, which draw different chains from the same seed) when the search ran;
 - `summary`: every number above, rates as `{k, n, value, low, high}`;
 - `findings`: ordered by kind (false negatives, false positives, self-validation, faults) and
   category, at most 200 (`findings_omitted` counts the rest; the result JSON has them all).
@@ -197,14 +198,16 @@ self-validation failures), with the response, the item, the expected verdict and
 certificate's reason; `repeat` fault findings become a test that grades the case three times.
 Other fault modes need a runtime fault to show and are listed in the file's docstring.
 
-The file imports the grader, not misgrade, for the `callable` adapter: `pkg.module:function`
-is imported, `path/to/file.py:function` is loaded from the working directory or the nearest
-directory above the test file that has it, and the return value is read as misgrade reads it
-(a number, a bool, a dict with `"score"`, a one-element list). For the other adapters the
-calling convention needs the adapter, so the file loads the grader with misgrade's public
-`misgrade.adapters.load_grader` and skips when misgrade is not installed; the adapter options
-of the audit are not in the result, so the file has an `OPTIONS` dict to fill in. The file is
-clean under `ruff check` and `ruff format` with ruff's default settings.
+The file imports the grader, not misgrade, for the `callable` adapter without options:
+`pkg.module:function` is imported, `path/to/file.py:function` is loaded from the working
+directory or the nearest directory above the test file that has it, the function is called
+as the adapter calls it (`grader(response, gold)`, plus those of `prompt`, `choices`, `meta`
+and `answer_type` it names as parameters), and the return value is read as misgrade reads it
+(a number, a bool, a dict with `"score"`, a one-element list). For the other adapters, and for
+`callable` with options (`argument_order`, `kwargs`), the calling convention needs the
+adapter, so the file loads the grader with misgrade's public `misgrade.adapters.load_grader`
+and the options recorded in the result (`OPTIONS`), and skips when misgrade is not installed.
+The file is clean under `ruff check` and `ruff format` with ruff's default settings.
 
 ### Hardening suggestions
 

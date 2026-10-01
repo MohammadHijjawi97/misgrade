@@ -122,7 +122,8 @@ All dataclasses are frozen. Everything serializes with `to_dict()` / `from_dict(
   its verdict; `finding_id = "<kind>:<case id>[@<fault>]"`; `shown` is the minimized case when
   there is one.
 - **`GraderSpec`** (adapter, target, options, name; picklable) and **`GraderInfo`** (name,
-  adapter, target, source `path:line`, library versions).
+  adapter, target, source `path:line`, library versions, and the spec's adapter options, so a
+  saved result can rebuild the grader exactly).
 - **`RunConfig`** (isolation, timeout, startup timeout, accept threshold, concurrency) and
   **`AuditConfig`** (answer type, template, budget, seed, include/exclude categories, search,
   minimize + budget, faults + budget, errors_as_reject, run).
@@ -631,3 +632,47 @@ printed as they are), `minimize_finding`, `summarize`, `disagreement`. When no `
 writer is registered the MCP payload falls back to a short summary of its own.
 
 **Bugs found in others' files:** none so far.
+
+## 12. Integration (applied on `main` after the four merges)
+
+The four branches merged without conflicts (A, B, C, then D). What the integration changed,
+and which section 11 proposals it took up:
+
+- **Contract change (C's proposal 1): `GraderInfo.options`.** The adapter options of the spec
+  are recorded in the result (`to_dict` writes them only when there are some, so earlier results
+  and the golden files are unchanged) and in the card (an optional `grader.options` property in
+  the schema; no `card_version` bump). B's `make_info` fills it. The `pytest` writer uses them:
+  a `callable` grader without options is still imported directly (and now also receives the
+  `prompt` / `choices` / `meta` / `answer_type` keywords it names, as the adapter passes them,
+  C's note 5); any grader with options goes through `load_grader` with the recorded `OPTIONS`.
+- **C's proposal 2:** `audit` records the search engine (`environment["search"]`) when the
+  search ran. **C's proposals 3 and 4** were already in D's code (`GateResult.unmeasured` is
+  printed); the MCP reply now always uses `render_markdown(result, max_findings=10)` and D's
+  fallback summary is gone.
+- **B's note for D:** `audit` grades a grader that exists only in this process (a lambda, a
+  closure; `adapters.in_process_only`) with `Isolation.NONE` instead of failing; the
+  `worker-death` check is then skipped, as `run_fault_checks` documents.
+- **B's proposal:** `pyyaml` (and `mcp`, so the MCP server is tested over the real SDK) are in
+  the `dev` dependency group; neither is a runtime dependency.
+- **D's proposal:** the extra names are pinned in `tests/contract/test_interfaces.py`
+  (`api.poison_cases`, `selftest.run_graders`, `adapters.in_process_only`, the CLI subcommands
+  and the MCP tools).
+- **Self-test after the merge.** With A's real operators, two clean reference graders had
+  gaps that the stand-in catalogue did not exercise: `reference-mc` accepted `hedge.mismatched-text`
+  (the gold label quoted with another option's text, `B. 5` when B is `4`) and
+  `reference-string` rejected `phrase.reasoning-first` (`Let's think step by step.` before the
+  answer). Both were reference-grader gaps, not certification errors: `mc_grader` now takes the
+  item's `choices` by name and rejects another option's text (`reference.mc_text_conflict`),
+  and the string reader drops that content-free opener. With them the self-test detects 31/31
+  planted bugs with 0/8 false alarms at seeds 0, 1, 2 and 3 (before the template rule below;
+  the self-test uses templates without math mode, so that rule does not change its cases).
+- **Template rule (A's `generate.py`).** The first real-grader runs showed variants such as
+  `\boxed{\[0.5\]}` and `$$0.5$$` inside a `$...$` template: an answer-scope wrapper that opens
+  math mode nested in a template that already puts the answer in math mode. TeX does not allow
+  that, so "delimiters add no content" does not hold there. `apply_chain` now refuses the
+  wrappers in `generate.MATH_DELIMITER_OPS` when `generate.slot_in_math(template)` (the slot is
+  inside `\boxed{}`, `$...$`, `$$...$$`, `\(...\)` or `\[...\]`); `latex.boxed` and
+  `latex.text` still apply.
+- **Tests.** The end-to-end tests audit `loose_tolerance` with a budget of 200 (at 120 the
+  round-robin plan over 18 number categories drew no near miss within its tolerance), and the
+  MCP test reads C's Markdown summary instead of D's fallback.
