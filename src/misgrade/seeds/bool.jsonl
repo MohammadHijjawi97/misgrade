@@ -1,0 +1,2 @@
+{"id": "bool-001", "type": "bool", "gold": "true", "prompt": "Is 17 a prime number? Answer true or false."}
+{"id": "bool-002", "type": "bool", "gold": "false", "prompt": "Is 21 a prime number? Answer true or false."}

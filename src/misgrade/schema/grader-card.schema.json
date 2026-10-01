@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/MohammadHijjawi97/misgrade/main/src/misgrade/schema/grader-card.schema.json",
+  "title": "misgrade grader card",
+  "description": "What one misgrade audit observed about one grader: rates with 95% Wilson intervals, the error-pattern profile, and every finding with its certificate. A finding is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "card_version",
+    "misgrade_version",
+    "generated_at",
+    "grader",
+    "config",
+    "environment",
+    "summary",
+    "findings",
+    "findings_omitted"
+  ],
+  "properties": {
+    "$schema": {"type": "string"},
+    "card_version": {"const": 1},
+    "misgrade_version": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "duration_s": {"type": "number", "minimum": 0},
+    "grader": {"$ref": "#/$defs/grader"},
+    "config": {"$ref": "#/$defs/config"},
+    "environment": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "summary": {"$ref": "#/$defs/summary"},
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "findings_omitted": {
+      "description": "Findings left out of this card to keep it small (the full list is in the result JSON).",
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "$defs": {
+    "answerType": {
+      "enum": ["number", "latex", "interval", "set", "mc", "bool", "json", "string"]
+    },
+    "category": {
+      "enum": [
+        "identity", "whitespace", "punctuation", "letter-case", "latex-wrapper",
+        "latex-spelling", "answer-phrase", "numeric-form", "thousands-separator",
+        "unicode-form", "reorder", "mc-form", "bool-form", "json-format",
+        "near-miss", "hedge", "retraction", "multiple-final", "truncation", "empty",
+        "prompt-echo", "master-key", "injection", "json-structure", "type-confusion",
+        "pathological"
+      ]
+    },
+    "findingKind": {
+      "enum": ["false-negative", "false-positive", "self-validation", "fault"]
+    },
+    "faultMode": {
+      "enum": ["repeat", "order", "concurrency", "timeout", "worker-death"]
+    },
+    "grader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "adapter", "target"],
+      "properties": {
+        "name": {"type": "string"},
+        "adapter": {"type": "string"},
+        "target": {"type": "string"},
+        "source": {"type": ["string", "null"]},
+        "versions": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": ["template", "budget", "seed", "faults"],
+      "properties": {
+        "answer_type": {"oneOf": [{"$ref": "#/$defs/answerType"}, {"type": "null"}]},
+        "template": {"type": "string", "pattern": "\\{answer\\}"},
+        "budget": {"type": "integer", "minimum": 1},
+        "seed": {"type": "integer"},
+        "include": {
+          "oneOf": [
+            {"type": "array", "items": {"$ref": "#/$defs/category"}},
+            {"type": "null"}
+          ]
+        },
+        "exclude": {"type": "array", "items": {"$ref": "#/$defs/category"}},
+        "search": {"type": "boolean"},
+        "minimize": {"type": "boolean"},
+        "minimize_budget": {"type": "integer", "minimum": 0},
+        "faults": {"type": "array", "items": {"$ref": "#/$defs/faultMode"}},
+        "fault_budget": {"type": "integer", "minimum": 0},
+        "errors_as_reject": {"type": "boolean"},
+        "run": {
+          "type": "object",
+          "properties": {
+            "isolation": {"enum": ["subprocess", "none"]},
+            "timeout_s": {"type": "number", "exclusiveMinimum": 0},
+            "startup_timeout_s": {"type": "number", "exclusiveMinimum": 0},
+            "accept_threshold": {"type": "number"},
+            "concurrency": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "rate": {
+      "description": "k of n with a 95% Wilson score interval; value is null when n is 0 (not measured).",
+      "type": "object",
+      "required": ["k", "n", "value", "low", "high"],
+      "properties": {
+        "k": {"type": "integer", "minimum": 0},
+        "n": {"type": "integer", "minimum": 0},
+        "value": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "low": {"type": "number", "minimum": 0, "maximum": 1},
+        "high": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items", "cases", "calls", "errors", "not_evaluable",
+        "self_validation", "fn", "fp", "fault", "by_category", "by_fault", "pattern"
+      ],
+      "properties": {
+        "items": {"type": "integer", "minimum": 0},
+        "cases": {"type": "integer", "minimum": 0},
+        "calls": {"type": "integer", "minimum": 0},
+        "errors": {"type": "integer", "minimum": 0},
+        "not_evaluable": {"type": "integer", "minimum": 0},
+        "self_validation": {"$ref": "#/$defs/rate"},
+        "fn": {"$ref": "#/$defs/rate"},
+        "fp": {"$ref": "#/$defs/rate"},
+        "fault": {"$ref": "#/$defs/rate"},
+        "by_category": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/rate"},
+              {
+                "type": "object",
+                "required": ["category", "kind"],
+                "properties": {
+                  "category": {"$ref": "#/$defs/category"},
+                  "kind": {"enum": ["false-negative", "false-positive"]}
+                }
+              }
+            ]
+          }
+        },
+        "by_fault": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/rate"},
+              {
+                "type": "object",
+                "required": ["mode"],
+                "properties": {"mode": {"$ref": "#/$defs/faultMode"}}
+              }
+            ]
+          }
+        },
+        "pattern": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "category", "count", "share"],
+            "properties": {
+              "kind": {"$ref": "#/$defs/findingKind"},
+              "category": {"$ref": "#/$defs/category"},
+              "count": {"type": "integer", "minimum": 1},
+              "share": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+            }
+          }
+        }
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "required": ["status", "score", "accepted"],
+      "properties": {
+        "status": {"enum": ["ok", "error", "timeout", "crash"]},
+        "score": {"type": ["number", "null"]},
+        "accepted": {"type": ["boolean", "null"]},
+        "error": {"type": ["string", "null"]},
+        "elapsed_s": {"type": "number", "minimum": 0}
+      }
+    },
+    "certificate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim", "method", "reason", "evidence"],
+      "properties": {
+        "claim": {"enum": ["equivalent", "different"]},
+        "method": {"enum": ["construction", "cas", "structural"]},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "shownCase": {
+      "type": "object",
+      "required": ["case_id", "response", "ops", "verdict"],
+      "properties": {
+        "case_id": {"type": "string"},
+        "response": {"type": "string"},
+        "ops": {"type": "array", "items": {"type": "string"}},
+        "verdict": {"$ref": "#/$defs/verdict"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "kind", "category", "item_id", "answer_type", "gold", "response", "ops",
+        "certificate", "observed", "expected", "reference", "fault", "minimized"
+      ],
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"$ref": "#/$defs/findingKind"},
+        "category": {"$ref": "#/$defs/category"},
+        "tier": {"enum": ["surface", "notation", null]},
+        "item_id": {"type": "string"},
+        "answer_type": {"$ref": "#/$defs/answerType"},
+        "gold": {"type": "string"},
+        "response": {"type": "string"},
+        "ops": {"type": "array", "items": {"type": "string"}},
+        "certificate": {"$ref": "#/$defs/certificate"},
+        "observed": {"$ref": "#/$defs/verdict"},
+        "expected": {
+          "description": "What the certificate (or, for faults, the clean run) required: accept or reject.",
+          "enum": ["accept", "reject"]
+        },
+        "reference": {"oneOf": [{"$ref": "#/$defs/verdict"}, {"type": "null"}]},
+        "fault": {"oneOf": [{"$ref": "#/$defs/faultMode"}, {"type": "null"}]},
+        "minimized": {"oneOf": [{"$ref": "#/$defs/shownCase"}, {"type": "null"}]}
+      }
+    }
+  }
+}

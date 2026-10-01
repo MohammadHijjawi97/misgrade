@@ -1,0 +1,3 @@
+{"id": "set-001", "type": "set", "gold": "{1, 2, 3}", "prompt": "What are the roots of (x - 1)(x - 2)(x - 3) = 0? Give the set."}
+{"id": "set-002", "type": "set", "gold": "{-2, 2}", "prompt": "Solve x^2 = 4 over the real numbers. Give the set of solutions."}
+{"id": "set-003", "type": "set", "gold": "{2, 3, 5, 7}", "prompt": "Which primes are less than 10? Give the set."}

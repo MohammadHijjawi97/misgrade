@@ -1,0 +1,23 @@
+name: Bug report
+description: misgrade crashed or behaved unexpectedly
+labels: [bug]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Command or API call
+      placeholder: "misgrade audit rewards.py:compute_score --type number"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Paste the output, plus `misgrade --version`, your OS and Python version.
+    validations:
+      required: true
+  - type: textarea
+    id: grader
+    attributes:
+      label: A small grader that shows it (optional)
+      render: python

@@ -1,0 +1,23 @@
+name: Wrong finding
+description: misgrade reported a finding that is not a grader error (its certificate is wrong, or the verdict was misread)
+labels: [wrong-finding]
+body:
+  - type: textarea
+    id: finding
+    attributes:
+      label: The finding
+      description: The finding id, the response, the gold, and the certificate's reason (from the card or the report).
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is wrong
+      description: For example "0.50 and 1/2 differ here because the task asks for an exact fraction", or "the grader's score was 1.0 but misgrade read it as a rejection".
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: misgrade version, adapter and answer type
+      placeholder: "0.1.0, callable, latex"

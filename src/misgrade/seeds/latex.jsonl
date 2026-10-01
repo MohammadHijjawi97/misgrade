@@ -1,0 +1,3 @@
+{"id": "latex-001", "type": "latex", "gold": "\\frac{\\sqrt{3}}{2}", "prompt": "What is the exact value of \\sin(60^\\circ)?"}
+{"id": "latex-002", "type": "latex", "gold": "2\\pi", "prompt": "What is the circumference of a circle of radius 1?"}
+{"id": "latex-003", "type": "latex", "gold": "\\frac{1}{3}", "prompt": "What is \\int_0^1 x^2 \\, dx?"}

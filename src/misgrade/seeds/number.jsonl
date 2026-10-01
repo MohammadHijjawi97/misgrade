@@ -1,0 +1,4 @@
+{"id": "number-001", "type": "number", "gold": "42", "prompt": "What is 6 times 7?"}
+{"id": "number-002", "type": "number", "gold": "0.5", "prompt": "What is 1 divided by 2? Give a decimal."}
+{"id": "number-003", "type": "number", "gold": "-12", "prompt": "What is 3 minus 15?"}
+{"id": "number-004", "type": "number", "gold": "1250", "prompt": "A shop sells 50 boxes at 25 dollars each. How many dollars does it take in?"}

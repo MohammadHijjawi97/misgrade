@@ -1,0 +1,26 @@
+name: Missed grader bug
+description: A grader has a bug misgrade did not report (an operator, mutant or fault check is missing)
+labels: [missed-bug]
+body:
+  - type: textarea
+    id: bug
+    attributes:
+      label: The grader bug
+      description: The grader (or a link to it), an answer and gold where it gives the wrong verdict, and the verdict it gives.
+    validations:
+      required: true
+  - type: textarea
+    id: run
+    attributes:
+      label: What misgrade reported
+      description: The command and the summary (or the card).
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to add the operator or planted bug?
+      options:
+        - Yes, I'd like to open a pull request
+        - Maybe, with some pointers
+        - No, just reporting it
+    validations:
+      required: true

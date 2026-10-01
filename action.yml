@@ -1,0 +1,114 @@
+# misgrade as a GitHub Action (composite). Owner: builder D.
+# Skeleton: the inputs and the run step are in place; misgrade audit is not implemented yet.
+name: misgrade
+description: Audit a grader (reward function, verifier or eval scorer) with answers certified equivalent to the gold and answers certified wrong. No model calls, no API key.
+author: Mohammad Hijjawi
+
+branding:
+  icon: check-square
+  color: purple
+
+inputs:
+  grader:
+    description: The grader to audit, e.g. rewards.py:compute_score or pkg.module:function.
+    required: true
+  adapter:
+    description: callable, verl, trl, verifiers, lm-eval, inspect, openai or promptfoo (default detected).
+    required: false
+    default: ""
+  type:
+    description: Answer type (number, latex, interval, set, mc, bool, json, string) or auto.
+    required: false
+    default: auto
+  seeds:
+    description: A JSONL file of gold items (default the bundled seed items).
+    required: false
+    default: ""
+  template:
+    description: Response template (plain, boxed, gsm8k, answer-tag, final-answer, or text with {answer}).
+    required: false
+    default: plain
+  budget:
+    description: Maximum number of cases graded in the main and search phases.
+    required: false
+    default: "2000"
+  fail-on:
+    description: Fail the step when a condition holds, e.g. "fp_rate>0.01,self_validation_rate<1".
+    required: false
+    default: ""
+  format:
+    description: Output formats (comma-separated).
+    required: false
+    default: card,markdown,sarif
+  output-dir:
+    description: Where the outputs are written.
+    required: false
+    default: misgrade-out
+  step-summary:
+    description: Add the Markdown summary to the job summary.
+    required: false
+    default: "true"
+  python-version:
+    description: Python used to run misgrade and the grader.
+    required: false
+    default: "3.12"
+  misgrade-version:
+    description: A misgrade version on PyPI, "latest", or "local" to install the action's own source.
+    required: false
+    default: local
+
+outputs:
+  exit-code:
+    description: The exit code of misgrade audit (0 ok, 1 a fail-on condition held, 2 usage, 3 grader not loadable, 4 internal).
+    value: ${{ steps.audit.outputs.exit-code }}
+  output-dir:
+    description: The directory with the outputs.
+    value: ${{ inputs.output-dir }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install misgrade
+      shell: bash
+      env:
+        MG_VERSION: ${{ inputs.misgrade-version }}
+        MG_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        case "$MG_VERSION" in
+          local) python -m pip install "$MG_ACTION_PATH" ;;
+          latest) python -m pip install misgrade ;;
+          *) python -m pip install "misgrade==$MG_VERSION" ;;
+        esac
+
+    - name: Audit the grader
+      id: audit
+      shell: bash
+      env:
+        MG_GRADER: ${{ inputs.grader }}
+        MG_ADAPTER: ${{ inputs.adapter }}
+        MG_TYPE: ${{ inputs.type }}
+        MG_SEEDS: ${{ inputs.seeds }}
+        MG_TEMPLATE: ${{ inputs.template }}
+        MG_BUDGET: ${{ inputs.budget }}
+        MG_FAIL_ON: ${{ inputs.fail-on }}
+        MG_FORMAT: ${{ inputs.format }}
+        MG_OUT: ${{ inputs.output-dir }}
+        MG_STEP_SUMMARY: ${{ inputs.step-summary }}
+      run: |
+        set -uo pipefail
+        args=(audit "$MG_GRADER" --type "$MG_TYPE" --template "$MG_TEMPLATE" --budget "$MG_BUDGET" --format "$MG_FORMAT" --out "$MG_OUT")
+        if [ -n "$MG_ADAPTER" ]; then args+=(--adapter "$MG_ADAPTER"); fi
+        if [ -n "$MG_SEEDS" ]; then args+=(--seeds "$MG_SEEDS"); fi
+        if [ -n "$MG_FAIL_ON" ]; then args+=(--fail-on "$MG_FAIL_ON"); fi
+        status=0
+        misgrade "${args[@]}" || status=$?
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+        if [ "$MG_STEP_SUMMARY" = "true" ] && [ -f "$MG_OUT/misgrade-summary.md" ]; then
+          cat "$MG_OUT/misgrade-summary.md" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit "$status"

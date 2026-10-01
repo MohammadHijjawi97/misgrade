@@ -1,0 +1,2 @@
+{"id": "json-001", "type": "json", "gold": "{\"name\": \"Ada\", \"year\": 1815}", "prompt": "Return a JSON object with the keys name and year: Ada Lovelace's first name and her birth year."}
+{"id": "json-002", "type": "json", "gold": "{\"items\": [3, 4, 5], \"total\": 12}", "prompt": "Return a JSON object with the list items [3, 4, 5] and their total."}

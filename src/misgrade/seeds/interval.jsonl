@@ -1,0 +1,3 @@
+{"id": "interval-001", "type": "interval", "gold": "(1, 3)", "prompt": "For which real x is (x - 1)(x - 3) < 0? Answer in interval notation."}
+{"id": "interval-002", "type": "interval", "gold": "[2, \\infty)", "prompt": "What is the domain of f(x) = \\sqrt{x - 2}? Answer in interval notation."}
+{"id": "interval-003", "type": "interval", "gold": "[-1, 1]", "prompt": "What is the range of cos(x) over the real numbers? Answer in interval notation."}

@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.svg text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+# Golden files are compared byte for byte on every OS.
+tests/**/golden/** text eol=lf
