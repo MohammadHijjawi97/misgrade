@@ -159,7 +159,9 @@ timeouts work the same on Windows, macOS and Linux and from any thread.
 
 With `Isolation.NONE` the grader runs in the calling process, each call in a daemon thread: a
 call past the deadline is reported as a `timeout` but cannot be stopped and keeps running in
-the background.
+the background. A new session (or `restart()`) loads the grader object again but not its
+module, so module-level state carries over from one session to the next, including into the
+fault checks.
 
 `GraderInfo.source` is `path:line` of the grading function (relative to the working directory
 when inside it), or `path:1` of a configuration file. `GraderInfo.versions` lists the grading
