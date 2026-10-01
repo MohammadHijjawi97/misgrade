@@ -91,5 +91,15 @@ def write_outputs(result: AuditResult, formats: Sequence[str], out_dir: Path) ->
     return written
 
 
-# The built-in writers register themselves on import.
-from misgrade.outputs import result_json  # noqa: E402, F401
+# The built-in writers register themselves on import (none of them imports rich or sympy).
+from misgrade.outputs import (  # noqa: E402, F401
+    badge,
+    card_json,
+    html,
+    junit,
+    markdown,
+    patches,
+    pytest_file,
+    result_json,
+    sarif,
+)

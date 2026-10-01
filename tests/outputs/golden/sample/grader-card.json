@@ -1,0 +1,287 @@
+{
+  "$schema": "https://raw.githubusercontent.com/MohammadHijjawi97/misgrade/main/src/misgrade/schema/grader-card.schema.json",
+  "card_version": 1,
+  "misgrade_version": "0.0.0-test",
+  "generated_at": "2026-01-01T00:00:00+00:00",
+  "duration_s": 1.25,
+  "grader": {
+    "name": "toy",
+    "adapter": "callable",
+    "target": "toy_rewards:compute_score",
+    "source": "toy_rewards.py:12",
+    "versions": {
+      "toy": "1.0"
+    }
+  },
+  "config": {
+    "answer_type": null,
+    "template": "{answer}",
+    "budget": 50,
+    "seed": 0,
+    "include": null,
+    "exclude": [],
+    "search": true,
+    "minimize": true,
+    "minimize_budget": 50,
+    "faults": [
+      "repeat"
+    ],
+    "fault_budget": 200,
+    "errors_as_reject": false,
+    "run": {
+      "isolation": "subprocess",
+      "timeout_s": 10.0,
+      "startup_timeout_s": 120.0,
+      "accept_threshold": 0.5,
+      "concurrency": 4
+    }
+  },
+  "environment": {
+    "platform": "test",
+    "python": "3.13.0",
+    "sympy": "1.13.3"
+  },
+  "summary": {
+    "items": 2,
+    "cases": 5,
+    "calls": 9,
+    "errors": 0,
+    "not_evaluable": 0,
+    "self_validation": {
+      "k": 2,
+      "n": 2,
+      "value": 1.0,
+      "low": 0.34238022750665303,
+      "high": 1.0
+    },
+    "fn": {
+      "k": 1,
+      "n": 1,
+      "value": 1.0,
+      "low": 0.20654931437723745,
+      "high": 1.0
+    },
+    "fp": {
+      "k": 1,
+      "n": 2,
+      "value": 0.5,
+      "low": 0.09453120573423074,
+      "high": 0.9054687942657693
+    },
+    "fault": {
+      "k": 1,
+      "n": 1,
+      "value": 1.0,
+      "low": 0.20654931437723745,
+      "high": 1.0
+    },
+    "by_category": [
+      {
+        "category": "whitespace",
+        "kind": "false-negative",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "near-miss",
+        "kind": "false-positive",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "hedge",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      }
+    ],
+    "by_fault": [
+      {
+        "mode": "repeat",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      }
+    ],
+    "pattern": [
+      {
+        "kind": "false-negative",
+        "category": "whitespace",
+        "count": 2,
+        "share": 1.0
+      },
+      {
+        "kind": "false-positive",
+        "category": "near-miss",
+        "count": 1,
+        "share": 1.0
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "false-negative:number-001::ws.trailing-space",
+      "kind": "false-negative",
+      "category": "whitespace",
+      "tier": "surface",
+      "item_id": "number-001",
+      "answer_type": "number",
+      "gold": "42",
+      "response": "42 ",
+      "ops": [
+        "ws.trailing-space"
+      ],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "construction",
+        "reason": "appended a space",
+        "evidence": {}
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": null,
+      "minimized": null
+    },
+    {
+      "id": "false-negative:number-001::latex.boxed+ws.trailing-space",
+      "kind": "false-negative",
+      "category": "latex-wrapper",
+      "tier": "surface",
+      "item_id": "number-001",
+      "answer_type": "number",
+      "gold": "42",
+      "response": "\\boxed{42} ",
+      "ops": [
+        "latex.boxed",
+        "ws.trailing-space"
+      ],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "construction",
+        "reason": "wrapped in \\boxed{}, then appended a space",
+        "evidence": {}
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": null,
+      "minimized": {
+        "case_id": "number-001::ws.trailing-space",
+        "category": "whitespace",
+        "response": "42 ",
+        "ops": [
+          "ws.trailing-space"
+        ],
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "appended a space",
+          "evidence": {}
+        },
+        "verdict": {
+          "status": "ok",
+          "score": 0.0,
+          "accepted": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "id": "false-positive:number-001::number.plus-one",
+      "kind": "false-positive",
+      "category": "near-miss",
+      "tier": null,
+      "item_id": "number-001",
+      "answer_type": "number",
+      "gold": "42",
+      "response": "43",
+      "ops": [
+        "number.plus-one"
+      ],
+      "certificate": {
+        "claim": "different",
+        "method": "cas",
+        "reason": "43 != 42",
+        "evidence": {
+          "gold_value": "42",
+          "case_value": "43"
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "expected": "reject",
+      "reference": null,
+      "fault": null,
+      "minimized": null
+    },
+    {
+      "id": "fault:number-001::identity@repeat",
+      "kind": "fault",
+      "category": "identity",
+      "tier": "surface",
+      "item_id": "number-001",
+      "answer_type": "number",
+      "gold": "42",
+      "response": "42",
+      "ops": [],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "construction",
+        "reason": "the response is the gold answer itself",
+        "evidence": {}
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": "repeat",
+      "minimized": null
+    }
+  ],
+  "findings_omitted": 0
+}

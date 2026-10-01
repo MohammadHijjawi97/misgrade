@@ -1,0 +1,485 @@
+{
+  "$schema": "https://raw.githubusercontent.com/MohammadHijjawi97/misgrade/main/src/misgrade/schema/grader-card.schema.json",
+  "card_version": 1,
+  "misgrade_version": "0.0.0-test",
+  "generated_at": "2026-02-03T04:05:06+00:00",
+  "duration_s": 12.5,
+  "grader": {
+    "name": "my \"grader\" <v2>",
+    "adapter": "verl",
+    "target": "C:\\Users\\Me\\rewards\\math rewards.py:compute_score",
+    "source": "C:\\Users\\Me\\rewards\\math rewards.py:42",
+    "versions": {
+      "math-verify": "0.8.0",
+      "sympy": "1.14.0"
+    }
+  },
+  "config": {
+    "answer_type": null,
+    "template": "\\boxed{{answer}}",
+    "budget": 40,
+    "seed": 7,
+    "include": null,
+    "exclude": [],
+    "search": true,
+    "minimize": true,
+    "minimize_budget": 50,
+    "faults": [
+      "worker-death",
+      "timeout",
+      "repeat"
+    ],
+    "fault_budget": 200,
+    "errors_as_reject": false,
+    "run": {
+      "isolation": "subprocess",
+      "timeout_s": 10.0,
+      "startup_timeout_s": 120.0,
+      "accept_threshold": 0.5,
+      "concurrency": 4
+    }
+  },
+  "environment": {
+    "platform": "test",
+    "python": "3.13.0",
+    "sympy": "1.14.0"
+  },
+  "summary": {
+    "items": 3,
+    "cases": 10,
+    "calls": 20,
+    "errors": 6,
+    "not_evaluable": 1,
+    "self_validation": {
+      "k": 2,
+      "n": 3,
+      "value": 0.6666666666666666,
+      "low": 0.2076596008020477,
+      "high": 0.9385080552796037
+    },
+    "fn": {
+      "k": 1,
+      "n": 2,
+      "value": 0.5,
+      "low": 0.09453120573423074,
+      "high": 0.9054687942657693
+    },
+    "fp": {
+      "k": 2,
+      "n": 2,
+      "value": 1.0,
+      "low": 0.34238022750665303,
+      "high": 1.0
+    },
+    "fault": {
+      "k": 3,
+      "n": 4,
+      "value": 0.75,
+      "low": 0.30064184258240184,
+      "high": 0.9544127391902995
+    },
+    "by_category": [
+      {
+        "category": "whitespace",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "low": 0.0,
+        "high": 1.0
+      },
+      {
+        "category": "thousands-separator",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      },
+      {
+        "category": "unicode-form",
+        "kind": "false-negative",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "mc-form",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "low": 0.0,
+        "high": 1.0
+      },
+      {
+        "category": "near-miss",
+        "kind": "false-positive",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "hedge",
+        "kind": "false-positive",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "pathological",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "low": 0.0,
+        "high": 1.0
+      }
+    ],
+    "by_fault": [
+      {
+        "mode": "repeat",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "mode": "timeout",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "mode": "worker-death",
+        "k": 1,
+        "n": 2,
+        "value": 0.5,
+        "low": 0.09453120573423074,
+        "high": 0.9054687942657693
+      }
+    ],
+    "pattern": [
+      {
+        "kind": "false-negative",
+        "category": "unicode-form",
+        "count": 2,
+        "share": 1.0
+      },
+      {
+        "kind": "false-positive",
+        "category": "near-miss",
+        "count": 1,
+        "share": 0.5
+      },
+      {
+        "kind": "false-positive",
+        "category": "hedge",
+        "count": 1,
+        "share": 0.5
+      },
+      {
+        "kind": "self-validation",
+        "category": "identity",
+        "count": 1,
+        "share": 1.0
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "false-negative:number-007::sep.comma+unicode.minus+phrase.the-answer-is",
+      "kind": "false-negative",
+      "category": "thousands-separator",
+      "tier": "notation",
+      "item_id": "number-007",
+      "answer_type": "number",
+      "gold": "-1000",
+      "response": "The answer is \\boxed{−1,000}.\n",
+      "ops": [
+        "sep.comma",
+        "unicode.minus",
+        "phrase.the-answer-is"
+      ],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "cas",
+        "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
+        "evidence": {
+          "sympy": "1.14.0",
+          "value": "-1000"
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": null,
+      "minimized": {
+        "case_id": "number-007::unicode.minus",
+        "category": "unicode-form",
+        "response": "\\boxed{−1000}",
+        "ops": [
+          "unicode.minus"
+        ],
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        },
+        "verdict": {
+          "status": "ok",
+          "score": 0.0,
+          "accepted": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "id": "false-negative:number-007::unicode.minus",
+      "kind": "false-negative",
+      "category": "unicode-form",
+      "tier": "notation",
+      "item_id": "number-007",
+      "answer_type": "number",
+      "gold": "-1000",
+      "response": "\\boxed{−1000}",
+      "ops": [
+        "unicode.minus"
+      ],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "cas",
+        "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
+        "evidence": {
+          "sympy": "1.14.0",
+          "value": "-1000"
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": null,
+      "minimized": null
+    },
+    {
+      "id": "false-positive:number-007::near.plus-one",
+      "kind": "false-positive",
+      "category": "near-miss",
+      "tier": null,
+      "item_id": "number-007",
+      "answer_type": "number",
+      "gold": "-1000",
+      "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate\u0007😀",
+      "ops": [
+        "near.plus-one"
+      ],
+      "certificate": {
+        "claim": "different",
+        "method": "structural",
+        "reason": "names two options | so it commits to no single answer",
+        "evidence": {
+          "labels": "A, B"
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "expected": "reject",
+      "reference": null,
+      "fault": null,
+      "minimized": null
+    },
+    {
+      "id": "false-positive:mc-003::mc.hedge-prev",
+      "kind": "false-positive",
+      "category": "hedge",
+      "tier": null,
+      "item_id": "mc-003",
+      "answer_type": "mc",
+      "gold": "B",
+      "response": "\\boxed{A or B}",
+      "ops": [
+        "mc.hedge-prev"
+      ],
+      "certificate": {
+        "claim": "different",
+        "method": "structural",
+        "reason": "names two options | so it commits to no single answer",
+        "evidence": {
+          "labels": "A, B"
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.75,
+        "accepted": true,
+        "error": null
+      },
+      "expected": "reject",
+      "reference": null,
+      "fault": null,
+      "minimized": null
+    },
+    {
+      "id": "self-validation:string-002::identity",
+      "kind": "self-validation",
+      "category": "identity",
+      "tier": "surface",
+      "item_id": "string-002",
+      "answer_type": "string",
+      "gold": "say \"hi\"",
+      "response": "\\boxed{say \"hi\"}",
+      "ops": [],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "construction",
+        "reason": "the response is the gold answer itself",
+        "evidence": {}
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null
+      },
+      "expected": "accept",
+      "reference": null,
+      "fault": null,
+      "minimized": null
+    },
+    {
+      "id": "fault:number-007::identity@worker-death",
+      "kind": "fault",
+      "category": "identity",
+      "tier": "surface",
+      "item_id": "number-007",
+      "answer_type": "number",
+      "gold": "-1000",
+      "response": "\\boxed{-1000}",
+      "ops": [],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "construction",
+        "reason": "the response is the gold answer itself",
+        "evidence": {}
+      },
+      "observed": {
+        "status": "crash",
+        "score": null,
+        "accepted": null,
+        "error": "worker exited with code -9"
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": "worker-death",
+      "minimized": null
+    },
+    {
+      "id": "fault:mc-003::identity@timeout",
+      "kind": "fault",
+      "category": "identity",
+      "tier": "surface",
+      "item_id": "mc-003",
+      "answer_type": "mc",
+      "gold": "B",
+      "response": "\\boxed{B}",
+      "ops": [],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "construction",
+        "reason": "the response is the gold answer itself",
+        "evidence": {}
+      },
+      "observed": {
+        "status": "error",
+        "score": null,
+        "accepted": null,
+        "error": "ValueError: bad \"input\" <here>\u0000"
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": "timeout",
+      "minimized": null
+    },
+    {
+      "id": "fault:number-007::identity@repeat",
+      "kind": "fault",
+      "category": "identity",
+      "tier": "surface",
+      "item_id": "number-007",
+      "answer_type": "number",
+      "gold": "-1000",
+      "response": "\\boxed{-1000}",
+      "ops": [],
+      "certificate": {
+        "claim": "equivalent",
+        "method": "construction",
+        "reason": "the response is the gold answer itself",
+        "evidence": {}
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null
+      },
+      "expected": "accept",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null
+      },
+      "fault": "repeat",
+      "minimized": null
+    }
+  ],
+  "findings_omitted": 0
+}
