@@ -76,6 +76,16 @@ class Operator:
 OPERATORS: Registry[Operator] = Registry("operator")
 
 
+def _first_paragraph(doc: str) -> str:
+    """The first paragraph of a docstring, its lines joined with single spaces."""
+    lines: list[str] = []
+    for line in doc.strip().splitlines():
+        if not line.strip():
+            break
+        lines.append(line.strip())
+    return " ".join(lines)
+
+
 def _register(
     kind: CaseKind,
     name: str,
@@ -97,7 +107,7 @@ def _register(
         raise ValueError(f"{name}: an operator needs at least one answer type")
 
     def decorate(fn: OperatorFn) -> OperatorFn:
-        text = description or next(iter((fn.__doc__ or "").strip().splitlines()), "")
+        text = description or _first_paragraph(fn.__doc__ or "")
         if not text:
             raise ValueError(f"{name}: an operator needs a description or a docstring")
         OPERATORS.register(
@@ -129,7 +139,8 @@ def variant(
 ) -> Callable[[OperatorFn], OperatorFn]:
     """Register a meaning-preserving rewrite. ``types=None`` means every answer type.
 
-    The description defaults to the first line of the function's docstring.
+    The description defaults to the first paragraph of the function's docstring (its
+    lines joined with single spaces).
     """
     return _register(
         CaseKind.VARIANT,
