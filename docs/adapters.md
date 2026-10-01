@@ -118,7 +118,10 @@ scorers without it, pass the option `source`: the folder of a verl checkout (or 
 package; `true` for an installed verl). misgrade then imports `verl` and `verl.utils` as bare
 packages, without running their `__init__` files, and `verl.utils.reward_score` from that
 tree; `verl.__version__` is read from `verl/version/version` as verl itself reads it. A scorer
-that imports other parts of verl still needs what those parts import.
+that imports other parts of verl still needs what those parts import: `prime_math` (the
+`numina_*` data sources) imports `verl.utils.py_functional`, whose `verl.utils.metric` imports
+torch, so with `source` its calls fail with `No module named 'torch'` unless torch is
+installed (checked on verl 0.9.1; gsm8k, MATH and math_dapo need no torch).
 
 ### `trl`
 

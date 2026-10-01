@@ -149,6 +149,8 @@ Found by loading third-party graders through the adapters; each has a regression
   installed Math-Verify cannot turn its timeouts off (0.5 starts a timer even for None, which
   fails on POSIX inside `parse`): with the target's default it would have rejected every
   answer without an error.
+- The docs no longer say that every verl scorer loads through the `source` option without
+  verl's training stack: `prime_math` imports torch through `verl.utils.metric`.
 
 Found by a review of the integrated pipeline; each has a regression test.
 

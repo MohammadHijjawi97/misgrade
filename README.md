@@ -97,7 +97,8 @@ Graders run in a separate process with timeouts that work the same on Linux, mac
 Adapters import no framework at install time (no torch, no ray); optional extras install them
 when you want misgrade to load a framework's own graders by name (the `verl` extra installs
 verl's training stack, torch and ray included, and needs Python < 3.13; the `verl` adapter's
-`source` option loads verl's scorers from a checkout without it). misgrade makes no model calls
+`source` option loads verl's scorers from a checkout without it, all but `prime_math`, which
+imports torch). misgrade makes no model calls
 and needs no API key.
 
 ## Is misgrade itself right?
