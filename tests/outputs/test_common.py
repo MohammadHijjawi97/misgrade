@@ -57,9 +57,10 @@ def test_literal_examples() -> None:
 def test_xml_escape_round_trips(text: str) -> None:
     document = f'<a b="{xml_escape(text, attribute=True)}">{xml_escape(text)}</a>'
     root = ET.fromstring(document)
-    allowed = all(
+    allowed = all(  # kept as they are: printable characters XML 1.0 can hold
         ch in "\t\n\r"
-        or 0x20 <= ord(ch) <= 0xD7FF
+        or 0x20 <= ord(ch) < 0x7F
+        or 0x9F < ord(ch) <= 0xD7FF
         or 0xE000 <= ord(ch) <= 0xFFFD
         or ord(ch) > 0xFFFF
         for ch in text

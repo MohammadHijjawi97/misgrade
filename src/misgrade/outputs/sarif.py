@@ -10,7 +10,6 @@ id, so a finding keeps its alert across runs.
 
 from __future__ import annotations
 
-import json
 import math
 import re
 from dataclasses import dataclass
@@ -22,6 +21,7 @@ from misgrade.outputs import register_writer
 from misgrade.outputs._common import (
     expected_decision,
     finding_sentence,
+    json_text,
     literal,
     ordered_findings,
     verdict_text,
@@ -48,7 +48,7 @@ class SarifWriter:
     description: str = "SARIF 2.1.0 for code scanning, located at the grader's source"
 
     def render(self, result: AuditResult) -> str:
-        return json.dumps(sarif_log(result), indent=2, ensure_ascii=False) + "\n"
+        return json_text(sarif_log(result))
 
 
 def render_sarif(result: AuditResult) -> str:

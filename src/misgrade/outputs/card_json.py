@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 
 from misgrade.card import build_card
 from misgrade.models import AuditResult
 from misgrade.outputs import register_writer
+from misgrade.outputs._common import json_text
 
 __all__ = ["CardWriter"]
 
@@ -19,7 +19,7 @@ class CardWriter:
     description: str = "the grader card: rates, pattern and findings (schema-validated JSON)"
 
     def render(self, result: AuditResult) -> str:
-        return json.dumps(build_card(result), indent=2, ensure_ascii=False) + "\n"
+        return json_text(build_card(result))
 
 
 register_writer(CardWriter())

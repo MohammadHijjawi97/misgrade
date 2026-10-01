@@ -9,6 +9,7 @@ an intended change of an output, regenerate them and review the diff::
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -41,14 +42,19 @@ def test_output_matches_golden_file(scenario: str, fmt: str, scenarios: Factorie
     assert rendered == path.read_bytes(), f"{fmt} output changed; see the module docstring"
 
 
+UNPRINTABLE = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\ud800-\udfff]")
+
+
 @pytest.mark.parametrize("fmt", FORMAT_NAMES)
 def test_output_is_deterministic_and_lf_only(fmt: str, scenarios: Factories) -> None:
     writer = WRITERS.get(fmt)
     for factory in scenarios.values():
         first, second = writer.render(factory()), writer.render(factory())
         assert first == second
-        assert "\r" not in first
         assert first.endswith("\n")
+        # Strict UTF-8, and no control characters (grader messages cannot inject them).
+        first.encode("utf-8")
+        assert not UNPRINTABLE.search(first), UNPRINTABLE.findall(first)
 
 
 def test_every_golden_file_belongs_to_a_writer() -> None:

@@ -6,11 +6,11 @@ Owner: builder C. ``misgrade report`` reads it back with
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 
 from misgrade.models import AuditResult
 from misgrade.outputs import register_writer
+from misgrade.outputs._common import json_text
 
 __all__ = ["ResultWriter"]
 
@@ -22,7 +22,7 @@ class ResultWriter:
     description: str = "the full result as JSON (misgrade report re-reads it)"
 
     def render(self, result: AuditResult) -> str:
-        return json.dumps(result.to_dict(), indent=2, ensure_ascii=False) + "\n"
+        return json_text(result.to_dict())
 
 
 register_writer(ResultWriter())

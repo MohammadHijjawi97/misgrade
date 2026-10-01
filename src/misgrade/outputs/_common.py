@@ -6,10 +6,12 @@ Every function here is pure and deterministic.
 
 from __future__ import annotations
 
+import json
+import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from misgrade.card import expected_decision, ordered_findings
 from misgrade.models import (
@@ -39,15 +41,42 @@ __all__ = [
     "expected_decision",
     "finding_details",
     "finding_sentence",
+    "json_text",
     "literal",
     "md_code",
     "md_text",
     "ordered_findings",
     "pct",
+    "printable",
     "rate_text",
     "verdict_text",
     "xml_escape",
 ]
+
+_UNPRINTABLE: Final = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\ud800-\udfff]")
+"""Control characters (except tab, line feed and carriage return) and lone surrogates."""
+_JSON_UNSAFE: Final = re.compile("[\x7f-\x9f\ud800-\udfff]")
+"""What ``json.dumps(..., ensure_ascii=False)`` leaves raw but should not: DEL, C1 controls,
+and lone surrogates (which cannot even be encoded as UTF-8)."""
+
+
+def _escape_char(match: re.Match[str]) -> str:
+    return f"\\u{ord(match.group()):04x}"
+
+
+def printable(text: str) -> str:
+    """``text`` with control characters (other than tab and line breaks) and lone surrogates
+    written as ``\\uXXXX``, so grader messages cannot inject them into a report and every
+    output encodes as UTF-8."""
+    return _UNPRINTABLE.sub(_escape_char, text)
+
+
+def json_text(data: Any) -> str:
+    """Indented JSON that keeps readable Unicode but escapes DEL, C1 controls and lone
+    surrogates (valid JSON escapes inside strings, the only place they can occur), with a
+    final newline."""
+    return _JSON_UNSAFE.sub(_escape_char, json.dumps(data, indent=2, ensure_ascii=False)) + "\n"
+
 
 KIND_LABELS: Final[Mapping[FindingKind, str]] = {
     FindingKind.FALSE_NEGATIVE: "false negative",
@@ -138,8 +167,10 @@ def _plain_letter(char: str) -> bool:
 
 
 def md_code(text: str) -> str:
-    """``text`` as a Markdown code span, whatever backticks it contains (no raw newlines:
-    pass :func:`literal` output)."""
+    """``text`` as a Markdown code span, whatever backticks it contains. Control characters
+    and line breaks are escaped (a span cannot hold them); :func:`literal` output passes
+    through unchanged."""
+    text = printable(text).replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
     longest = run = 0
     for char in text:
         run = run + 1 if char == "`" else 0
@@ -152,7 +183,7 @@ def md_code(text: str) -> str:
 def md_text(text: str) -> str:
     """Plain text made safe for a Markdown paragraph or table cell (no markup, no pipes)."""
     escaped = []
-    for char in " ".join(text.split()):
+    for char in printable(" ".join(text.split())):
         if char in "\\`*_[]<>|#~":
             escaped.append("\\" + char)
         else:
@@ -161,8 +192,9 @@ def md_text(text: str) -> str:
 
 
 def xml_escape(text: str, *, attribute: bool = False) -> str:
-    """``text`` for XML 1.0 (JUnit, SVG): markup escaped, characters XML cannot hold written
-    as ``\\uXXXX``; in attributes, tabs and line breaks are kept as character references."""
+    """``text`` for XML 1.0 (JUnit, SVG): markup escaped, control characters and characters
+    XML cannot hold written as ``\\uXXXX``; in attributes, tabs and line breaks are kept as
+    character references."""
     out = []
     for char in text:
         code = ord(char)
@@ -176,7 +208,12 @@ def xml_escape(text: str, *, attribute: bool = False) -> str:
             out.append("&quot;")
         elif char in "\t\n\r":
             out.append(f"&#{code};" if attribute else char)
-        elif code < 0x20 or 0xD800 <= code <= 0xDFFF or code in (0xFFFE, 0xFFFF):
+        elif (
+            code < 0x20
+            or 0x7F <= code <= 0x9F
+            or 0xD800 <= code <= 0xDFFF
+            or code in (0xFFFE, 0xFFFF)
+        ):
             out.append(f"\\u{code:04x}")
         else:
             out.append(char)

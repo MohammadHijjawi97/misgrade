@@ -47,7 +47,7 @@ ITEMS: dict[str, dict[str, Any]] = {
         "id": "number-007",
         "type": "number",
         "gold": "-1000",
-        "prompt": 'How much? <script>alert("x")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\nSecond line\twith a tab.',
+        "prompt": 'How much? <script>alert("x")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\x00 c1\x85 del\x7f lone\ud83d surrogate\nSecond line\twith a tab.',
     },
     "string-002": {"id": "string-002", "type": "string", "gold": 'say "hi"'},
 }
@@ -58,11 +58,11 @@ CASES = [
         "\\boxed{\u22121000}",
         "number-007",
         "accept",
-        'sympy: <script>alert("x")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold',
+        'sympy: <script>alert("x")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\x00 c1\x85 del\x7f lone\ud83d surrogate equals the gold',
         id="false-negative-number-007-unicode.minus",
     ),
     pytest.param(
-        '\\boxed{-999} <script>alert("x")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\x07\U0001f600',
+        '\\boxed{-999} <script>alert("x")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\x00 c1\x85 del\x7f lone\ud83d surrogate\x07\U0001f600',
         "number-007",
         "reject",
         "names two options | so it commits to no single answer",

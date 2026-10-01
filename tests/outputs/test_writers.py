@@ -433,3 +433,13 @@ def test_markdown_without_main_phase_findings() -> None:
     text = render_markdown(only_search)
     assert "Categories with findings in the main phase" not in text
     assert "**1 findings:** 1 false negative." in text
+
+
+def test_result_json_round_trips_for_misgrade_report(any_result: AuditResult) -> None:
+    """``misgrade report`` re-reads the result JSON: every format renders the same again."""
+    text = WRITERS.get("result").render(any_result)
+    again = AuditResult.from_dict(json.loads(text))
+    assert again == any_result
+    for name in FORMAT_NAMES:
+        writer = WRITERS.get(name)
+        assert writer.render(again) == writer.render(any_result)

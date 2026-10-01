@@ -196,7 +196,7 @@
           "ruleIndex": 0,
           "level": "warning",
           "message": {
-            "text": "The grader rejected a response certified equivalent to the gold (unicode-form), although it accepted the gold itself. Response \"\\\\boxed{\\u22121000}\" for gold \"-1000\" (item number-007): expected accept, observed reject (score 0). Certificate (cas): sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold"
+            "text": "The grader rejected a response certified equivalent to the gold (unicode-form), although it accepted the gold itself. Response \"\\\\boxed{\\u22121000}\" for gold \"-1000\" (item number-007): expected accept, observed reject (score 0). Certificate (cas): sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold"
           },
           "locations": [
             {
@@ -233,7 +233,7 @@
             "certificate": {
               "claim": "equivalent",
               "method": "cas",
-              "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+              "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
               "evidence": {
                 "sympy": "1.14.0",
                 "value": "-1000"
@@ -246,7 +246,7 @@
           "ruleIndex": 0,
           "level": "warning",
           "message": {
-            "text": "The grader rejected a response certified equivalent to the gold (unicode-form), although it accepted the gold itself. Response \"\\\\boxed{\\u22121000}\" for gold \"-1000\" (item number-007): expected accept, observed reject (score 0). Certificate (cas): sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold"
+            "text": "The grader rejected a response certified equivalent to the gold (unicode-form), although it accepted the gold itself. Response \"\\\\boxed{\\u22121000}\" for gold \"-1000\" (item number-007): expected accept, observed reject (score 0). Certificate (cas): sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold"
           },
           "locations": [
             {
@@ -283,7 +283,7 @@
             "certificate": {
               "claim": "equivalent",
               "method": "cas",
-              "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+              "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
               "evidence": {
                 "sympy": "1.14.0",
                 "value": "-1000"
@@ -296,7 +296,7 @@
           "ruleIndex": 1,
           "level": "error",
           "message": {
-            "text": "The grader accepted a response certified different from the gold (near-miss). Response \"\\\\boxed{-999} <script>alert(\\\"x\\\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\\\boxed{1} [bold]markup[/bold] & --> <!--\\x07\\U0001f600\" for gold \"-1000\" (item number-007): expected reject, observed accept (score 1). Certificate (structural): names two options | so it commits to no single answer"
+            "text": "The grader accepted a response certified different from the gold (near-miss). Response \"\\\\boxed{-999} <script>alert(\\\"x\\\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\\\boxed{1} [bold]markup[/bold] & --> <!-- nul\\x00 c1\\x85 del\\x7f lone\\ud83d surrogate\\x07\\U0001f600\" for gold \"-1000\" (item number-007): expected reject, observed accept (score 1). Certificate (structural): names two options | so it commits to no single answer"
           },
           "locations": [
             {
@@ -325,7 +325,7 @@
             "ops": [
               "near.plus-one"
             ],
-            "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\u0007😀",
+            "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate\u0007😀",
             "gold": "-1000",
             "expected": "reject",
             "observed": "accept",

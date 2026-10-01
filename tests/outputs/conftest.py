@@ -38,7 +38,7 @@ collect_ignore = ["golden"]
 
 HOSTILE = (
     '<script>alert("x")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} '
-    "[bold]markup[/bold] & --> <!--"
+    "[bold]markup[/bold] & --> <!-- nul\x00 c1\x85 del\x7f lone\ud83d surrogate"
 )
 
 

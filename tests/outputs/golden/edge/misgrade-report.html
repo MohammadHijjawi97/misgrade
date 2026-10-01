@@ -245,12 +245,12 @@ A <strong>finding</strong> is an observed verdict that differs from what the cas
 <dl class="kv">
 <dt>Response</dt><dd><code>&quot;\\boxed{\u22121000}&quot;</code></dd>
 <dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
-<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate
 Second line	with a tab.</dd>
 <dt>Operators</dt><dd><code>unicode.minus</code></dd>
 <dt>Expected</dt><dd>accept</dd>
 <dt>Observed</dt><dd>reject (score 0)</dd>
-<dt>Certificate</dt><dd>sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold <span class="muted">(cas)</span><ul><li>sympy: <code>1.14.0</code></li><li>value: <code>-1000</code></li></ul></dd>
+<dt>Certificate</dt><dd>sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold <span class="muted">(cas)</span><ul><li>sympy: <code>1.14.0</code></li><li>value: <code>-1000</code></li></ul></dd>
 <dt>Gold verdict</dt><dd>accept (score 1)</dd>
 <dt>Found as</dt><dd><code>number-007::sep.comma+unicode.minus+phrase.the-answer-is</code>: <code>&quot;The answer is \\boxed{\u22121,000}.\n&quot;</code> (observed reject (score 0)); minimized to 1 of 3 operators</dd>
 <dt>Hardening</dt><dd><a href="#advice-unicode-form">Normalize Unicode before comparing</a></dd>
@@ -261,12 +261,12 @@ Second line	with a tab.</dd>
 <dl class="kv">
 <dt>Response</dt><dd><code>&quot;\\boxed{\u22121000}&quot;</code></dd>
 <dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
-<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate
 Second line	with a tab.</dd>
 <dt>Operators</dt><dd><code>unicode.minus</code></dd>
 <dt>Expected</dt><dd>accept</dd>
 <dt>Observed</dt><dd>reject (score 0)</dd>
-<dt>Certificate</dt><dd>sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold <span class="muted">(cas)</span><ul><li>sympy: <code>1.14.0</code></li><li>value: <code>-1000</code></li></ul></dd>
+<dt>Certificate</dt><dd>sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold <span class="muted">(cas)</span><ul><li>sympy: <code>1.14.0</code></li><li>value: <code>-1000</code></li></ul></dd>
 <dt>Gold verdict</dt><dd>accept (score 1)</dd>
 <dt>Hardening</dt><dd><a href="#advice-unicode-form">Normalize Unicode before comparing</a></dd>
 </dl>
@@ -274,9 +274,9 @@ Second line	with a tab.</dd>
 <details class="finding" id="finding-3" open>
 <summary><span class="pill bad">false positive</span> <strong>near-miss</strong> <code>number-007::near.plus-one</code> <span class="muted">expected reject, observed accept</span></summary>
 <dl class="kv">
-<dt>Response</dt><dd><code>&quot;\\boxed{-999} &lt;script&gt;alert(\&quot;x\&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--\x07\U0001f600&quot;</code></dd>
+<dt>Response</dt><dd><code>&quot;\\boxed{-999} &lt;script&gt;alert(\&quot;x\&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\x00 c1\x85 del\x7f lone\ud83d surrogate\x07\U0001f600&quot;</code></dd>
 <dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
-<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate
 Second line	with a tab.</dd>
 <dt>Operators</dt><dd><code>near.plus-one</code></dd>
 <dt>Expected</dt><dd>reject</dd>
@@ -316,7 +316,7 @@ Second line	with a tab.</dd>
 <dl class="kv">
 <dt>Response</dt><dd><code>&quot;\\boxed{-1000}&quot;</code></dd>
 <dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
-<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate
 Second line	with a tab.</dd>
 <dt>Operators</dt><dd><span class="muted">none</span></dd>
 <dt>Expected</dt><dd>accept</dd>
@@ -335,7 +335,7 @@ Second line	with a tab.</dd>
 <dt>Choices</dt><dd>A: a | b, B: `c`, C: &lt;d&gt;, D: été</dd>
 <dt>Operators</dt><dd><span class="muted">none</span></dd>
 <dt>Expected</dt><dd>accept</dd>
-<dt>Observed</dt><dd>error: ValueError: bad &quot;input&quot; &lt;here&gt; </dd>
+<dt>Observed</dt><dd>error: ValueError: bad &quot;input&quot; &lt;here&gt;\u0000</dd>
 <dt>Certificate</dt><dd>the response is the gold answer itself <span class="muted">(construction)</span></dd>
 <dt>Clean run</dt><dd>accept (score 1)</dd>
 <dt>Hardening</dt><dd><a href="#advice-timeout">Leave the grader usable after a timeout</a></dd>
@@ -346,7 +346,7 @@ Second line	with a tab.</dd>
 <dl class="kv">
 <dt>Response</dt><dd><code>&quot;\\boxed{-1000}&quot;</code></dd>
 <dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
-<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate
 Second line	with a tab.</dd>
 <dt>Operators</dt><dd><span class="muted">none</span></dd>
 <dt>Expected</dt><dd>accept</dd>

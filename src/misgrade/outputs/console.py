@@ -21,6 +21,7 @@ from misgrade.outputs._common import (
     literal,
     ordered_findings,
     pct,
+    printable,
     verdict_text,
 )
 
@@ -41,8 +42,8 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
     console.print(
         Text.assemble(
             ("misgrade ", "bold"),
-            (grader.name, "bold cyan"),
-            f"  ({grader.adapter} adapter, {summary.items} items, {summary.cases} cases, "
+            (printable(grader.name), "bold cyan"),
+            f"  ({printable(grader.adapter)} adapter, {summary.items} items, {summary.cases} cases, "
             f"{summary.calls} grader calls, seed {result.config.seed})",
         )
     )
@@ -133,7 +134,7 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
                 f"{number:>3}. ",
                 (label, _STYLES[finding.kind]),
                 f"  {shown.category.value}  ",
-                (shown.case_id, "cyan"),
+                (printable(shown.case_id), "cyan"),
             )
         )
         console.print(
@@ -141,15 +142,14 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
             f"{escape(literal(shown.item.gold))}",
             highlight=False,
         )
+        observed = escape(printable(verdict_text(verdict)))
         console.print(
-            f"     expected {expected_decision(finding)}, observed {escape(verdict_text(verdict))}",
+            f"     expected {expected_decision(finding)}, observed {observed}",
             highlight=False,
         )
+        reason = printable(shown.certificate.reason)
         console.print(
-            Text(
-                f"     certificate ({shown.certificate.method.value}): {shown.certificate.reason}",
-                style="dim",
-            )
+            Text(f"     certificate ({shown.certificate.method.value}): {reason}", style="dim")
         )
     hidden = len(findings) - max(0, max_findings)
     if hidden > 0:

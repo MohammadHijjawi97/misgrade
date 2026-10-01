@@ -13,7 +13,7 @@
     </properties>
     <testcase classname="misgrade.main.identity" name="number-007::identity" time="0.001"/>
     <testcase classname="misgrade.main.unicode-form" name="number-007::unicode.minus" time="0.001">
-      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;\\boxed{\u22121000}&quot; (gold &quot;-1000&quot;; sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold)">finding: false-negative:number-007::unicode.minus
+      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;\\boxed{\u22121000}&quot; (gold &quot;-1000&quot;; sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold)">finding: false-negative:number-007::unicode.minus
 kind: false negative
 category: unicode-form (variant)
 item: number-007 (number)
@@ -23,18 +23,18 @@ operators: unicode.minus
 expected: accept
 observed: reject (score 0)
 reference (the gold itself): accept (score 1)
-certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold
+certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold
   sympy: 1.14.0
   value: -1000</failure>
     </testcase>
     <testcase classname="misgrade.main.thousands-separator" name="number-007::sep.comma" time="0.001"/>
     <testcase classname="misgrade.main.near-miss" name="number-007::near.plus-one" time="0.250">
-      <failure type="false-positive" message="false positive: expected reject, observed accept (score 1) for &quot;\\boxed{-999} &lt;script&gt;alert(\&quot;x\&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--\x07\U0001f600&quot; (gold &quot;-1000&quot;; names two options | so it commits to no single answer)">finding: false-positive:number-007::near.plus-one
+      <failure type="false-positive" message="false positive: expected reject, observed accept (score 1) for &quot;\\boxed{-999} &lt;script&gt;alert(\&quot;x\&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\x00 c1\x85 del\x7f lone\ud83d surrogate\x07\U0001f600&quot; (gold &quot;-1000&quot;; names two options | so it commits to no single answer)">finding: false-positive:number-007::near.plus-one
 kind: false positive
 category: near-miss (mutant)
 item: number-007 (number)
 gold: "-1000"
-response: "\\boxed{-999} &lt;script&gt;alert(\"x\")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--\x07\U0001f600"
+response: "\\boxed{-999} &lt;script&gt;alert(\"x\")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\x00 c1\x85 del\x7f lone\ud83d surrogate\x07\U0001f600"
 operators: near.plus-one
 expected: reject
 observed: accept (score 1)
@@ -89,7 +89,7 @@ certificate (construction): the response is the gold answer itself</failure>
       <property name="budget" value="40"/>
     </properties>
     <testcase classname="misgrade.search.thousands-separator" name="number-007::sep.comma+unicode.minus+phrase.the-answer-is" time="0.001">
-      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;The answer is \\boxed{\u22121,000}.\n&quot; (gold &quot;-1000&quot;; sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold)">finding: false-negative:number-007::sep.comma+unicode.minus+phrase.the-answer-is
+      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;The answer is \\boxed{\u22121,000}.\n&quot; (gold &quot;-1000&quot;; sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold)">finding: false-negative:number-007::sep.comma+unicode.minus+phrase.the-answer-is
 kind: false negative
 category: thousands-separator (variant)
 item: number-007 (number)
@@ -99,13 +99,13 @@ operators: sep.comma + unicode.minus + phrase.the-answer-is
 expected: accept
 observed: reject (score 0)
 reference (the gold itself): accept (score 1)
-certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold
+certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold
   sympy: 1.14.0
   value: -1000
 minimized to: number-007::unicode.minus
 minimized response: "\\boxed{\u22121000}"
 minimized observed: reject (score 0)
-minimized certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold
+minimized certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold
 minimized   sympy: 1.14.0
 minimized   value: -1000</failure>
     </testcase>

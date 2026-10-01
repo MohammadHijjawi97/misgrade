@@ -125,7 +125,9 @@ misgrade audit rewards.py:compute_score --fail-on 'fp_rate.low>0.01, faults>0'
 ## Output formats
 
 Every writer is a pure function of the result: the same result gives the same bytes on every
-OS (UTF-8, `\n` line endings). Strings from graders and seeds are escaped for each format.
+OS (UTF-8, `\n` line endings). Strings from graders and seeds are escaped for each format, and
+control characters and lone surrogates (from a grader's error message, say) are written as
+`\uXXXX`, so they cannot inject markup or break the encoding.
 Responses are shown as exact string literals: backslashes, quotes, control characters and
 every non-ASCII character that is not a plain letter are escaped, so `"42 "` shows its
 trailing space and `"−1"` (a Unicode minus) is not mistaken for `"-1"`.

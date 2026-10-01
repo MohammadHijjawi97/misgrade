@@ -214,7 +214,7 @@
       "certificate": {
         "claim": "equivalent",
         "method": "cas",
-        "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+        "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
         "evidence": {
           "sympy": "1.14.0",
           "value": "-1000"
@@ -244,7 +244,7 @@
         "certificate": {
           "claim": "equivalent",
           "method": "cas",
-          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
           "evidence": {
             "sympy": "1.14.0",
             "value": "-1000"
@@ -273,7 +273,7 @@
       "certificate": {
         "claim": "equivalent",
         "method": "cas",
-        "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+        "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate equals the gold",
         "evidence": {
           "sympy": "1.14.0",
           "value": "-1000"
@@ -303,7 +303,7 @@
       "item_id": "number-007",
       "answer_type": "number",
       "gold": "-1000",
-      "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\u0007😀",
+      "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate\u0007😀",
       "ops": [
         "near.plus-one"
       ],

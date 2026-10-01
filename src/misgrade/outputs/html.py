@@ -35,6 +35,7 @@ from misgrade.outputs._common import (
     literal,
     ordered_findings,
     pct,
+    printable,
     verdict_text,
 )
 from misgrade.outputs.advice import ADVICE
@@ -241,7 +242,7 @@ def render_html(result: AuditResult) -> str:
 
 
 def _e(text: object) -> str:
-    return escape(str(text), quote=True)
+    return escape(printable(str(text)), quote=True)
 
 
 def _code(text: str) -> str:
