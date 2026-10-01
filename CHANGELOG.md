@@ -143,6 +143,8 @@ Found by loading third-party graders through the adapters; each has a regression
 - The README no longer suggests that simple-evals and lighteval have adapters: the docs show
   how to audit them through the `callable` adapter. The docs state what the `verl` extra
   installs and what installing misgrade adds to a grader's environment.
+- The `--template` row of docs/interfaces.md shows `\boxed{{answer}}` again: two backspace
+  characters had replaced its `\b`. A test keeps control characters out of the docs.
 
 Found by a review of the integrated pipeline; each has a regression test.
 

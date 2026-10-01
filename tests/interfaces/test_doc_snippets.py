@@ -10,12 +10,36 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 FENCE = re.compile(r"^```python\n(.*?)^```", re.M | re.S)
+CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def published_docs() -> list[Path]:
+    """The Markdown files of the repository's root and docs/ (not the ones .gitignore names,
+    which are local notes)."""
+    ignore = ROOT / ".gitignore"
+    ignored = (
+        [line.strip() for line in ignore.read_text(encoding="utf-8").splitlines()]
+        if ignore.is_file()
+        else []
+    )
+    found = [*ROOT.glob("*.md"), *(ROOT / "docs").glob("*.md")]
+    return sorted(
+        path
+        for path in found
+        if not any(
+            pattern and fnmatch(path.relative_to(ROOT).as_posix(), pattern) for pattern in ignored
+        )
+    )
+
+
+DOCS = published_docs()
 
 REWARDS = '''
 def compute_score(answer, gold):
@@ -36,6 +60,16 @@ def api_examples(doc: str) -> list[str]:
         for block in FENCE.findall(text)
         if "misgrade.audit(" in block or "misgrade.compare(" in block
     ]
+
+
+@pytest.mark.parametrize("doc", DOCS, ids=lambda path: path.relative_to(ROOT).as_posix())
+def test_docs_have_no_control_characters(doc: Path) -> None:
+    """A LaTeX command written through a string escape (``"\\boxed"`` read as backspace +
+    ``oxed``) leaves a control character that renders as a garbled command (review finding:
+    the ``--template`` row of docs/interfaces.md showed ``oxed{{answer}}``)."""
+    lines = doc.read_text(encoding="utf-8").splitlines()
+    bad = [(number, line) for number, line in enumerate(lines, 1) if CONTROL.search(line)]
+    assert not bad, bad
 
 
 @pytest.mark.parametrize("doc", ["README.md", "docs/interfaces.md"])

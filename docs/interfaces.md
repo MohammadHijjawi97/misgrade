@@ -42,7 +42,7 @@ misgrade mcp
 | --- | --- | --- |
 | `--type` | `auto` | `number`, `latex`, `interval`, `set`, `mc`, `bool`, `json`, `string`; `auto` uses every bundled type (and detection for untyped seed items) |
 | `--seeds FILE.jsonl` | the bundled items | your own gold items, one JSON object per line (below) |
-| `--template` | `plain` | the response format the grader expects: `plain`, `boxed`, `gsm8k`, `answer-tag`, `final-answer`, or a text in which every literal `{answer}` is replaced by the answer and nothing else is interpreted (no escaping: the `boxed` preset is `oxed{{answer}}`, which gives `oxed{42}`; `misgrade list templates` shows what each preset gives) |
+| `--template` | `plain` | the response format the grader expects: `plain`, `boxed`, `gsm8k`, `answer-tag`, `final-answer`, or a text in which every literal `{answer}` is replaced by the answer and nothing else is interpreted (no escaping: the `boxed` preset is `\boxed{{answer}}`, which gives `\boxed{42}`; `misgrade list templates` shows what each preset gives) |
 | `--items IDS`, `--exclude-items IDS` | all | audit only, or leave out, these items: ids or shell-style patterns, comma-separated (`mc-00*,set-002`), for the bundled items or a `--seeds` file; a pattern that matches nothing is an error |
 | `--budget N` | 2000 | cases graded in the main and search phases together |
 | `--seed N` | 0 | same seed, same cases |
