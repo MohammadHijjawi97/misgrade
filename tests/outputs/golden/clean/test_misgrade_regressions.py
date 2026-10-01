@@ -45,18 +45,33 @@ def _load(target: str) -> Any:
         path = next((place for place in places if place.is_file()), None)
         if path is None:
             pytest.fail(f"cannot find {location}: edit GRADER at the top of this file")
-        sys.path.insert(0, str(path.parent))
-        spec = importlib.util.spec_from_file_location(f"_graded_{path.stem}", path)
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
+        module = _import_file(path.resolve())
     else:
         module = importlib.import_module(location)
     function: Any = module
     for part in name.split("."):
         function = getattr(function, part)
     return function
+
+
+def _import_file(path: Path) -> Any:
+    """Import a file under its own name, as ``import <stem>`` from its folder would, so
+    processes the grader starts (a process pool) can import its functions; a made-up
+    name only when its own is taken."""
+    sys.path.insert(0, str(path.parent))
+    stem = path.stem
+    module = sys.modules.get(stem)
+    if module is None and stem.isidentifier() and stem not in sys.stdlib_module_names:
+        module = importlib.import_module(stem)
+    file = getattr(module, "__file__", None)
+    if module is not None and file is not None and Path(file).resolve() == path:
+        return module
+    spec = importlib.util.spec_from_file_location(f"_graded_{stem}", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _score(raw: object) -> float:

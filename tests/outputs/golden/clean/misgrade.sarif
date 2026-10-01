@@ -30,6 +30,7 @@
           "cases": 5,
           "calls": 5,
           "errors": 0,
+          "injected": 0,
           "not_evaluable": 0,
           "self_validation": {
             "k": 2,
@@ -67,7 +68,15 @@
               "n": 1,
               "value": 0.0,
               "low": 0.0,
-              "high": 0.7934506856227626
+              "high": 0.7934506856227626,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "ws.trailing-space",
+                  "k": 0,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "near-miss",
@@ -76,7 +85,15 @@
               "n": 1,
               "value": 0.0,
               "low": 0.0,
-              "high": 0.7934506856227626
+              "high": 0.7934506856227626,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "number.plus-one",
+                  "k": 0,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "hedge",
@@ -85,11 +102,20 @@
               "n": 1,
               "value": 0.0,
               "low": 0.0,
-              "high": 0.7934506856227626
+              "high": 0.7934506856227626,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "mc.hedge-next",
+                  "k": 0,
+                  "n": 1
+                }
+              ]
             }
           ],
           "by_fault": [],
-          "pattern": []
+          "pattern": [],
+          "search_findings": []
         },
         "startedAt": "2026-01-01T00:00:00+00:00"
       },

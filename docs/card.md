@@ -21,18 +21,25 @@ The decision for every observation comes from the shared rule in `misgrade.model
 | `fn` | non-identity variants rejected | non-identity variants with a decision, on items whose identity case was accepted |
 | `fp` | mutants accepted | mutants with a decision |
 | `fault` | fault-check verdicts that changed | fault-check observations whose clean run had a score and that did not time out |
-| `by_category` | as `fn` (variant categories) or `fp` (mutant categories) | one row per category with at least one main-phase case |
+| `by_category` | as `fn` (variant categories) or `fp` (mutant categories) | one row per category with at least one main-phase case; with `items` (distinct items behind `n`) and `operators` (`k` of `n` per operator) |
 | `by_fault` | as `fault` | one row per fault mode with at least one compared observation |
-| `errors` | calls that ended without a score (error, timeout, crash), every phase | |
+| `errors` | calls that ended without a score (error, timeout, crash), every phase, except the calls misgrade ended on purpose | |
+| `injected` | calls the `worker-death` check ended on purpose (a provoking call without a reference that crashed) | |
 | `not_evaluable` | variants with a decision on items whose gold was not accepted | |
 | `items` / `cases` / `calls` | items with a main-phase case / main-phase observations / all observations | |
 
 Rules worth knowing:
 
-- **Main phase only.** Rates use the single-operator cases planned before any grading.
-  Search-phase cases are chosen adaptively (towards verdict changes), so counting them would
-  bias the rates; their findings are reported and enter the pattern profile. Minimize-phase
-  calls are steps of the minimizer and enter nothing but `calls` and `errors`.
+- **Main phase only.** Rates and the error-pattern profile use the single-operator cases
+  planned before any grading. Search-phase cases are chosen adaptively (towards verdict
+  changes, and differently by each search engine), so counting them would bias the rates and
+  the shares; their findings are reported, and counted per kind and category in
+  `search_findings`, without shares. Minimize-phase calls are steps of the minimizer and enter
+  nothing but `calls` and `errors`.
+- **Calls misgrade ends on purpose are not errors.** The `worker-death` check ends the
+  grader's process (or a process it started) during a call; that call is counted in
+  `injected`, not in `errors`, so `errors>0` does not fail a grader for misgrade's own fault
+  injection.
 - **No decision, no denominator.** A call that ended without a score is in `errors` and in no
   rate, unless `errors_as_reject` (for trainers that give 0 reward when the reward function
   fails) counts it as a rejection. `errors` still counts it in that case.
@@ -48,14 +55,24 @@ Rules worth knowing:
 are clamped to `[0, 1]`; `k = 0` gives a lower bound of exactly 0 and `k = n` an upper bound
 of exactly 1. With `n = 0` nothing was measured: the value is `null` and the interval `[0, 1]`.
 
+The interval treats the `n` cases as independent draws. They are not: a category's cases are
+its operators applied to every item, fully enumerated, so its outcome is often decided by the
+operator (four items times six separator operators, one operator accepted on every item and
+five rejected on every item, is 20/24). Read a category's interval as conditional on these
+items and operators, not as the precision of a rate over answers in general. Each
+`by_category` row therefore also gives `items` (the distinct items behind `n`) and `operators`
+(`k` of `n` per operator), which show when one operator, or one item, decides the rate.
+
 ### The error-pattern profile
 
 `pattern_profile(findings)` gives, for each finding kind, the share of that kind's findings in
-each category, by the category of the case shown (the minimized one when there is one).
-Search-phase findings are included; fault findings are not. Each finding counts once, also
-when two findings minimize to the same case. Rows are ordered by kind, then descending count,
-then category. Which wrong answers a reward accepts matters for RL training as much as how
-many (arXiv 2605.02909); the profile is that "which".
+each category, by the category of the case shown (the minimized one when there is one); fault
+findings are left out. `summarize` passes it the main-phase findings only (one per planned
+single-operator case), so the shares have a denominator fixed before grading and do not change
+with the search engine or the budget left for the search; the search's findings are counted
+apart in `search_findings`. Rows are ordered by kind, then descending count, then category.
+Which wrong answers a reward accepts matters for RL training as much as how many (arXiv
+2605.02909); the profile is that "which".
 
 ### The disagreement matrix
 
@@ -112,10 +129,17 @@ op        := > | >= | < | <= | == | !=
 The gate fails (exit code 1) when any condition holds. Rates are fractions (`fp_rate>0.01`
 is "more than 1%"); `.low` and `.high` are the Wilson bounds (`fp_rate.low>0.01` fails only
 when the 95% interval lies above 1%, `fp_rate.high>0.01` unless it lies at or below 1%).
-`error_rate` is `errors / calls`. Counts include
-search-phase findings: `fp`, `fn` and `self_validation` are findings of that kind, `faults` is
-fault findings, `errors` failed calls, `findings` all of them. A condition on a rate that was
-not measured (`n = 0`) never holds and is reported as not measured. Examples:
+`error_rate` is `errors / calls` (calls ended on purpose by the `worker-death` check left out
+of both). Counts include search-phase findings: `fp`, `fn` and `self_validation` are findings
+of that kind, `faults` is fault findings, `errors` failed calls, `findings` all of them.
+
+Nothing measured is no pass. A condition on something that was not measured fails the gate
+too, and is reported as not measured: a rate with `n = 0`, a count of findings of a kind no
+case of which was decided (`fp` when no mutant got a score and the search found no false
+positive), `faults` when no fault-check verdict was compared, `errors` when no call was made,
+`findings` when none of its parts was measured. `--allow-unmeasured` (`allow_unmeasured=True`
+in Python and the pytest plugin) lists such conditions instead of failing. Independently of the
+conditions, the gate fails when every grader call ended without a score. Examples:
 
 ```
 misgrade audit rewards.py:compute_score --fail-on 'fp_rate>0, self_validation_rate<1'
@@ -158,7 +182,11 @@ bumps the version). It holds:
   such as `boxed` becomes `\boxed{{answer}}`);
 - `environment`: Python, platform, sympy, and the search engine (`search`: `random` or
   `hypothesis <version>`, which draw different chains from the same seed) when the search ran;
-- `summary`: every number above, rates as `{k, n, value, low, high}`;
+- `summary`: every number above, rates as `{k, n, value, low, high}`, category rows with
+  `items` and `operators`, the main-phase `pattern` and the counts-only `search_findings`;
+- `notes` (only when there are some): what the audit could not do as configured and what it
+  did instead (a fault check that did not run, the pathological cases left out of an
+  in-process audit, gold answers misgrade cannot read as their type);
 - `findings`: ordered by kind (false negatives, false positives, self-validation, faults) and
   category, at most 200 (`findings_omitted` counts the rest; the result JSON has them all).
   Each finding has its id, kind, category and tier, the item, gold and response, the operator
@@ -200,13 +228,17 @@ Other fault modes need a runtime fault to show and are listed in the file's docs
 
 The file imports the grader, not misgrade, for the `callable` adapter without options:
 `pkg.module:function` is imported, `path/to/file.py:function` is loaded from the working
-directory or the nearest directory above the test file that has it, the function is called
+directory or the nearest directory above the test file that has it (under its own module name,
+as misgrade's adapter imports it, so a process pool the grader starts can import it), the
+function is called
 as the adapter calls it (`grader(response, gold)`, plus those of `prompt`, `choices`, `meta`
 and `answer_type` it names as parameters), and the return value is read as misgrade reads it
 (a number, a bool, a dict with `"score"`, a one-element list). For the other adapters, and for
 `callable` with options (`argument_order`, `kwargs`), the calling convention needs the
 adapter, so the file loads the grader with misgrade's public `misgrade.adapters.load_grader`
-and the options recorded in the result (`OPTIONS`), and skips when misgrade is not installed.
+and the options recorded in the result (`OPTIONS`). Such a file needs misgrade installed:
+without it every test fails with a message that says so (a skip would turn the known
+regressions green).
 The file is clean under `ruff check` and `ruff format` with ruff's default settings.
 
 ### Hardening suggestions

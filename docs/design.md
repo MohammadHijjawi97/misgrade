@@ -127,8 +127,9 @@ All dataclasses are frozen. Everything serializes with `to_dict()` / `from_dict(
 - **`RunConfig`** (isolation, timeout, startup timeout, accept threshold, concurrency) and
   **`AuditConfig`** (answer type, template, budget, seed, include/exclude categories, search,
   minimize + budget, faults + budget, errors_as_reject, run).
-- **`Rate`** (k, n, Wilson low/high; `value` is None when n = 0), `CategoryRate`, `FaultRate`,
-  `PatternShare`, **`Summary`**, **`DisagreementMatrix`**, **`AuditResult`** (the full result;
+- **`Rate`** (k, n, Wilson low/high; `value` is None when n = 0), `CategoryRate` (with the
+  items behind it and `OperatorCount`s), `FaultRate`, `PatternShare`, `FindingCount`,
+  **`Summary`**, **`DisagreementMatrix`**, **`AuditResult`** (the full result, with `notes`;
   `to_dict()` is the `result` format, `format: "misgrade.result"`, version 1).
 
 ### The classification rule (`classify`, `fault_changed`, `to_finding`)
@@ -249,7 +250,7 @@ minimize_finding(finding, *, rebuild, oracle, identity, max_tests, errors_as_rej
 # misgrade.search
 search_compositions(item, *, ops, rebuild, oracle, identity, budget, seed, max_depth=3) -> list[Observation]
 # misgrade.gate
-parse_gate(text) -> Gate; evaluate_gate(gate, summary) -> GateResult(failed, held, unmeasured)
+parse_gate(text) -> Gate; evaluate_gate(gate, summary, *, allow_unmeasured=False) -> GateResult(failed, held, unmeasured, no_scores, reasons)
 # misgrade.card
 build_card(result) -> dict; card_schema() -> dict      # schema/grader-card.schema.json, card_version 1
 # misgrade.outputs
@@ -262,9 +263,11 @@ print_summary(result, console, *, max_findings=10)
 
 Obligations:
 
-- **Counting rules** (`stats.py` docstring, `Summary` docstring): rates use main-phase
-  observations only; search findings enter the pattern profile, not the rates; minimize-phase
-  observations enter no rate; `errors` count every phase; `calls` = all observations. The
+- **Counting rules** (`stats.py` docstring, `Summary` docstring): rates and the pattern
+  profile use main-phase observations and findings only; search findings are counted apart in
+  `search_findings`; minimize-phase observations enter no rate; `errors` count every phase
+  except the calls the `worker-death` check ends on purpose (`injected`); `calls` = all
+  observations. The
   hand-computed `tests/_support.sample_result()` must be reproduced exactly by `summarize`.
 - Wilson bounds clamp to [0, 1]; `k == 0` gives low 0 and `k == n` gives high 1 exactly.
 - Every writer is pure and byte-deterministic (golden files on every OS, `\n` endings). The
@@ -273,8 +276,10 @@ Obligations:
   category. SARIF points at `GraderInfo.source` when known.
 - The card validates against the shipped schema (draft 2020-12); breaking schema changes bump
   `card_version`.
-- Gate grammar in `gate.py`; a condition on an unmeasured rate (n = 0) never holds and is
-  reported as unmeasured.
+- Gate grammar in `gate.py`; a condition on something not measured (a rate with n = 0, a
+  count of findings of a kind no case of which was decided) fails the gate unless
+  `allow_unmeasured`, and is reported as unmeasured; the gate fails when every call ended
+  without a score.
 - The search uses Hypothesis when installed (`misgrade[search]`), a seeded `random.Random`
   otherwise; both deterministic. Hypothesis is not a runtime dependency.
 
@@ -345,12 +350,9 @@ Python 3.10-3.13.
 
 ## 9. Stubs and contract changes
 
-- Every module still to be implemented sets `__stub__ = True` and raises
-  `NotImplementedError("builder X: ...")` in its functions. Remove the flag when every
-  function of the module is implemented.
-- Tests that need another part use `@pytest.mark.needs("transforms", "runner", ...)` (module
-  names under `misgrade.`): they are skipped while any of those modules is a stub, and run
-  automatically once it is merged.
+- During the parallel build, every module still to be implemented set `__stub__ = True` and
+  tests that needed another part carried `@pytest.mark.needs(...)`, which skipped them while a
+  module was a stub. Both were removed after the integration (section 13).
 - **Contract changes** (anything in the "contract" rows of section 3, a signature in section 5,
   a vocabulary value): not on a builder branch. Write the proposal in your section 11 notes
   (what, why, who is affected) and work around it locally; the integrator applies accepted
@@ -676,3 +678,56 @@ and which section 11 proposals it took up:
 - **Tests.** The end-to-end tests audit `loose_tolerance` with a budget of 200 (at 120 the
   round-robin plan over 18 number categories drew no near miss within its tolerance), and the
   MCP test reads C's Markdown summary instead of D's fallback.
+
+## 13. Review of the integrated pipeline (applied on `main`)
+
+A review of `main` after the integration found 25 problems; each fix has a regression test.
+What changed in the contract and in behaviour users see:
+
+- **Contract (models).** `AuditResult.notes` (what an audit could not do as configured; written
+  to the result and the card only when there are some), `Summary.injected` and
+  `Summary.search_findings` (`FindingCount`: kind, category, count), `CategoryRate.items` and
+  `CategoryRate.operators` (`OperatorCount`: operator, k, n). The card schema gained the
+  matching optional properties (no `card_version` bump). `MisgradeWarning` in
+  `misgrade.errors`. `evaluate_gate(gate, summary, *, allow_unmeasured=False)`;
+  `GateResult` gained `no_scores` and `reasons`.
+- **Counting.** The error-pattern profile is computed from main-phase findings only (the search
+  findings shifted the shares with the engine and the budget); search findings are counted
+  apart, without shares. The call the `worker-death` check ends on purpose is `injected`, not an
+  error. Category intervals are labelled as conditional on the items and operators, and each row
+  gives its items and per-operator counts.
+- **Gate.** A condition that could not be measured fails the gate (unless `allow_unmeasured`), and
+  the gate fails when every grader call ended without a score: a reward function that raised on
+  every call used to pass `fp>0,fn>0`. The CLI, the MCP tool and `misgrade_conforms` parse the
+  gate (and the CLI the formats) before the audit runs.
+- **Loading.** A grader file is imported under its own module name with its folder first on
+  `sys.path` (a made-up name only when that one is taken, with a `MisgradeWarning`), so a
+  process pool the grader starts can import its functions; the generated regression file does
+  the same. verl detection reads `compute_score`'s parameters with `ast`. The regression file
+  of a non-`callable` grader fails, rather than skips, without misgrade. `misgrade minimize`
+  loads the grader with the options recorded in the result.
+- **In-process audits.** With `Isolation.NONE` (lambdas, closures) the `pathological` cases and
+  the `timeout` and `worker-death` checks are left out: a call that holds the GIL cannot be
+  stopped in-process, and the audit hung. The result's config and notes record it.
+- **Certificates.** Prompt echoes are not certified wrong when a number, fraction or math span
+  of the prompt reads as the gold; truncations whose finished response contains the gold again
+  (the template's brace closing the cut group) are dropped; a truncation of a gold misgrade
+  cannot read is not certified; `unicode.sqrt` writes `√(x)y`, not `√xy`; MC near misses and
+  alternatives skip options whose text equals the gold option's (and two labels of one text
+  are not certified different); `near.change-char` changes a consonant (a vowel swap made
+  `gray` from `grey`); `unicode.nbsp` changes only the answer's spaces, not the template's;
+  number certificates name misgrade's exact number reader, not sympy.
+- **Timeout check for every type.** Without pathological operators for the items (mc, bool,
+  string, json, set, interval), the poison is a type-agnostic 102,001-character stress
+  response (`api.stress_case`), so the check runs; a requested fault check that compared no
+  verdict is named in the notes.
+- **Terminal output.** User data is printed as `rich.text.Text`, never as markup (a backslash
+  before `]` was lost); look-alike characters in certificate reasons are escaped; on a stream
+  whose encoding cannot hold a character (a cp1252 pipe on Windows) the CLI writes a backslash
+  escape instead of exiting 4, the card and `version --json` are written as UTF-8 bytes, and
+  the output files are written before the summary is printed. CI no longer sets `PYTHONUTF8`.
+- **Housekeeping.** The examples that call `misgrade.audit` are under
+  `if __name__ == "__main__":` (a test runs the README's as a script); the sdist ships every
+  file the tests read; the build-phase ownership lines, CHANGELOG markers, the `needs` marker
+  and the CLI's `NotImplementedError` branch are gone; CLI options show their defaults and a
+  seed line without `id` or `gold` says the field is missing.

@@ -226,7 +226,6 @@ def test_default_items_are_the_bundled_seeds(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.mark.integration
-@pytest.mark.needs("transforms", "adapters", "runner", "stats", "minimize", "search")
 def test_end_to_end_on_a_planted_grader() -> None:
     result = audit(
         "misgrade.selftest.planted:exact_match",
@@ -269,8 +268,17 @@ def test_poison_comes_from_the_plan_or_is_generated(monkeypatch: pytest.MonkeyPa
     generated = poison_cases(ITEMS, planned, config)
     assert [case.case_id for case in generated] == ["n1::patho.tower", "n2::patho.tower"]
 
+    # Without a pathological operator for the items (mc, bool, ... items), the poison is the
+    # type-agnostic stress response, so the timeout check still runs (review finding).
     monkeypatch.setattr(api_module, "generate_cases", fake_cases)
-    assert poison_cases(ITEMS, plan_cases(ITEMS, AuditConfig()), AuditConfig()) == []
+    stress = poison_cases(ITEMS, plan_cases(ITEMS, AuditConfig()), AuditConfig())
+    assert [case.case_id for case in stress] == [
+        "n1::stress.long-response",
+        "n2::stress.long-response",
+    ]
+    assert all(
+        case.category is Category.PATHOLOGICAL and len(case.response) > 100_000 for case in stress
+    )
 
 
 @pytest.mark.parametrize(
@@ -305,3 +313,39 @@ def test_environment_records_what_can_change_verdicts() -> None:
 
     env = environment()
     assert {"python", "implementation", "platform", "sympy", "mpmath"} <= set(env)
+
+
+# --- regressions from the review of the integrated pipeline ------------------------------------
+
+
+def test_gold_answers_misgrade_cannot_read_are_named_in_the_notes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review finding: seed golds were never checked against their declared type."""
+    Recorder().install(monkeypatch)
+    items = (*ITEMS, Item(id="n3", gold="12 cm", answer_type=AnswerType.NUMBER))
+    result = audit("m:f", items, config=AuditConfig(search=False, minimize=False, faults=()))
+    (note,) = [note for note in result.notes if "cannot read" in note]
+    assert "n3 ('12 cm' as number)" in note and "n1" not in note
+    clean = audit("m:f", ITEMS, config=AuditConfig(search=False, minimize=False, faults=()))
+    assert not any("cannot read" in note for note in clean.notes)
+
+
+def test_a_requested_fault_check_that_compared_nothing_is_named(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review finding: a fault check that did not run was silently absent from the result."""
+    recorder = Recorder()
+    recorder.install(monkeypatch)
+    # The fake fault runner compares one worker-death verdict only: repeat and order did not
+    # run, worker-death did.
+    modes = (FaultMode.REPEAT, FaultMode.ORDER, FaultMode.WORKER_DEATH)
+    config = AuditConfig(search=False, minimize=False, faults=modes, fault_budget=3)
+    result = audit("m:f", ITEMS, config=config)
+    (note,) = [note for note in result.notes if note.startswith("fault check")]
+    assert note.startswith("fault checks not run: repeat, order (")
+    assert "fault budget of 3 calls" in note
+    ran = AuditConfig(
+        search=False, minimize=False, faults=(FaultMode.WORKER_DEATH,), fault_budget=3
+    )
+    assert not any(n.startswith("fault check") for n in audit("m:f", ITEMS, config=ran).notes)

@@ -15,7 +15,8 @@ concurrency:
 
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  PYTHONUTF8: "1"
+  # No PYTHONUTF8: on Windows the CLI must work with the console's own encoding (cp1252 when
+  # its output is piped), as users run it.
 
 jobs:
   lint:
@@ -51,8 +52,6 @@ jobs:
 
   coverage:
     # Lines and branches, spawned grader workers included (coverage's multiprocessing support).
-    # The floor is the measured total when it was last raised, minus a point; it goes to 90
-    # once every part is implemented.
     name: coverage floor
     runs-on: ubuntu-latest
     env:
@@ -94,8 +93,14 @@ jobs:
           grep -q "misgrade/schema/grader-card.schema.json" contents.txt
           grep -q "misgrade/seeds/number.jsonl" contents.txt
           grep -q "misgrade/py.typed" contents.txt
-
-  # Builder D appends the selftest, action and pre-commit jobs below this line.
+      - name: The tests that read repository files pass from the sdist
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install dist/*.whl pytest hypothesis jsonschema
+          mkdir sdist && tar -xzf dist/*.tar.gz -C sdist --strip-components=1
+          cd sdist
+          python -m pytest -q -p no:cacheprovider tests/contract tests/interfaces/test_action_and_hook.py
 
   selftest:
     # 100% recall on the planted bugs and no finding on the clean graders, as a user runs it.

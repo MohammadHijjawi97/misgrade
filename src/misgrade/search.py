@@ -1,9 +1,9 @@
 """Search over compositions of operators: several rewrites at once (``\\boxed{}`` around a
 thousands-separated number inside "The answer is ..."), and mutants under rewrites.
 
-Owner: builder C. Uses Hypothesis when it is installed (``pip install "misgrade[search]"``) and
+Uses Hypothesis when it is installed (``pip install "misgrade[search]"``) and
 a seeded ``random.Random`` search otherwise; both are deterministic for a given seed.
-Candidates are built with ``rebuild`` (builder A's chain rule decides validity) and graded with
+Candidates are built with ``rebuild`` (the transforms' chain rule decides validity) and graded with
 ``oracle``; the search prefers chains near a verdict change (shrinking towards fewer
 operators is the minimizer's job, not the search's).
 

@@ -420,7 +420,7 @@ def test_html_without_versions_source_or_categories() -> None:
     assert "libraries that decide verdicts" not in page and " · source " not in page
     assert "No single-operator cases were graded." in page
     assert "No fault-check verdict was compared" in page
-    assert "No case findings, so no pattern." in page
+    assert "No main-phase case findings, so no pattern." in page
 
 
 def test_markdown_without_main_phase_findings() -> None:
@@ -432,7 +432,7 @@ def test_markdown_without_main_phase_findings() -> None:
     )
     text = render_markdown(only_search)
     assert "Categories with findings in the main phase" not in text
-    assert "**1 findings:** 1 false negative." in text
+    assert "**1 finding:** 1 false negative." in text
 
 
 def test_result_json_round_trips_for_misgrade_report(any_result: AuditResult) -> None:

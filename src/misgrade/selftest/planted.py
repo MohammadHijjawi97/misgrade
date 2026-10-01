@@ -1,6 +1,6 @@
 """Planted-bug graders: one per variant category, mutant category and fault mode.
 
-Owner: builder D. Each grader is a correct reference grader (:mod:`misgrade.selftest.reference`)
+Each grader is a correct reference grader (:mod:`misgrade.selftest.reference`)
 with one bug added, modelled on a mistake real graders make; ``misgrade selftest`` checks that
 misgrade reports a finding of the bug's kind in the bug's category or fault mode for every one
 of them (100% recall in CI). A planted grader may cause other findings too; only its target

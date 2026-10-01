@@ -300,6 +300,7 @@
           "cases": 5,
           "calls": 9,
           "errors": 0,
+          "injected": 0,
           "not_evaluable": 0,
           "self_validation": {
             "k": 2,
@@ -337,7 +338,15 @@
               "n": 1,
               "value": 1.0,
               "low": 0.20654931437723745,
-              "high": 1.0
+              "high": 1.0,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "ws.trailing-space",
+                  "k": 1,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "near-miss",
@@ -346,7 +355,15 @@
               "n": 1,
               "value": 1.0,
               "low": 0.20654931437723745,
-              "high": 1.0
+              "high": 1.0,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "number.plus-one",
+                  "k": 1,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "hedge",
@@ -355,7 +372,15 @@
               "n": 1,
               "value": 0.0,
               "low": 0.0,
-              "high": 0.7934506856227626
+              "high": 0.7934506856227626,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "mc.hedge-next",
+                  "k": 0,
+                  "n": 1
+                }
+              ]
             }
           ],
           "by_fault": [
@@ -372,7 +397,7 @@
             {
               "kind": "false-negative",
               "category": "whitespace",
-              "count": 2,
+              "count": 1,
               "share": 1.0
             },
             {
@@ -380,6 +405,13 @@
               "category": "near-miss",
               "count": 1,
               "share": 1.0
+            }
+          ],
+          "search_findings": [
+            {
+              "kind": "false-negative",
+              "category": "whitespace",
+              "count": 1
             }
           ]
         },

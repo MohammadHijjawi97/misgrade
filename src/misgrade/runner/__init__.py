@@ -1,7 +1,7 @@
 """The runner: calls the grader under test in isolation, with timeouts, and turns every call
 into a :class:`~misgrade.models.Verdict`.
 
-Owner: builder B. :class:`GraderSession`, :func:`open_session` and :func:`grade_cases` are the
+:class:`GraderSession`, :func:`open_session` and :func:`grade_cases` are the
 contract; :func:`grade_cases` is real code over the protocol.
 
 Isolation (``RunConfig.isolation``):

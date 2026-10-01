@@ -37,6 +37,11 @@
       "description": "Findings left out of this card to keep it small (the full list is in the result JSON).",
       "type": "integer",
       "minimum": 0
+    },
+    "notes": {
+      "description": "What the audit could not do as configured and what it did instead (a fault check that did not run, a category left out, gold answers misgrade cannot read). Present only when there are some.",
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
     }
   },
   "$defs": {
@@ -132,6 +137,11 @@
         "cases": {"type": "integer", "minimum": 0},
         "calls": {"type": "integer", "minimum": 0},
         "errors": {"type": "integer", "minimum": 0},
+        "injected": {
+          "description": "Calls misgrade ended on purpose (the worker-death check); not counted in errors.",
+          "type": "integer",
+          "minimum": 0
+        },
         "not_evaluable": {"type": "integer", "minimum": 0},
         "self_validation": {"$ref": "#/$defs/rate"},
         "fn": {"$ref": "#/$defs/rate"},
@@ -147,7 +157,26 @@
                 "required": ["category", "kind"],
                 "properties": {
                   "category": {"$ref": "#/$defs/category"},
-                  "kind": {"enum": ["false-negative", "false-positive"]}
+                  "kind": {"enum": ["false-negative", "false-positive"]},
+                  "items": {
+                    "description": "Distinct items behind n: the cases are the category's operators applied to every item, not independent draws, so the interval is conditional on these items and operators.",
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "operators": {
+                    "description": "k of n per operator of the category (main phase).",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["operator", "k", "n"],
+                      "properties": {
+                        "operator": {"type": "string"},
+                        "k": {"type": "integer", "minimum": 0},
+                        "n": {"type": "integer", "minimum": 1}
+                      }
+                    }
+                  }
                 }
               }
             ]
@@ -167,6 +196,7 @@
           }
         },
         "pattern": {
+          "description": "The error-pattern profile of the main-phase findings: per kind, the share of its findings in each category.",
           "type": "array",
           "items": {
             "type": "object",
@@ -177,6 +207,20 @@
               "category": {"$ref": "#/$defs/category"},
               "count": {"type": "integer", "minimum": 1},
               "share": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+            }
+          }
+        },
+        "search_findings": {
+          "description": "Findings of the search over compositions per kind and category; counts only (search cases are chosen adaptively, so they get no share).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "category", "count"],
+            "properties": {
+              "kind": {"$ref": "#/$defs/findingKind"},
+              "category": {"$ref": "#/$defs/category"},
+              "count": {"type": "integer", "minimum": 1}
             }
           }
         }

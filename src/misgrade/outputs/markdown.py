@@ -10,15 +10,18 @@ from typing import Final
 from misgrade.models import AuditResult, FindingKind, resolve_template
 from misgrade.outputs import register_writer
 from misgrade.outputs._common import (
+    CATEGORY_INTERVALS,
     HEADLINES,
     KIND_LABELS,
     KIND_PLURALS,
+    call_notes,
     expected_decision,
     literal,
     md_code,
     md_text,
     ordered_findings,
     pct,
+    plural,
     verdict_text,
 )
 
@@ -47,7 +50,8 @@ def render_markdown(result: AuditResult, *, max_findings: int = MAX_MARKDOWN_FIN
         "",
         (
             f"{md_text(grader.adapter)} grader {md_code(grader.target)} · "
-            f"{summary.items} items, {summary.cases} cases, {summary.calls} grader calls · "
+            f"{plural(summary.items, 'item')}, {plural(summary.cases, 'case')}, "
+            f"{plural(summary.calls, 'grader call')} · "
             f"template {md_code(resolve_template(config.template))} · seed {config.seed} · "
             f"misgrade {md_text(result.misgrade_version)}"
         ),
@@ -66,16 +70,13 @@ def render_markdown(result: AuditResult, *, max_findings: int = MAX_MARKDOWN_FIN
                 f"{pct(rate.low)} to {pct(rate.high)} |"
             )
     lines.append("")
-    extras = []
-    if summary.errors:
-        extras.append(f"{summary.errors} calls ended without a score (error, timeout or crash)")
-    if summary.not_evaluable:
-        extras.append(
-            f"{summary.not_evaluable} variants were not evaluable (their item's gold answer "
-            "was not accepted)"
-        )
+    extras = call_notes(result)
     if extras:
-        lines += ["; ".join(extras) + ".", ""]
+        lines += [md_text("; ".join(extras) + "."), ""]
+    if result.notes:
+        lines += ["Notes:", ""]
+        lines += [f"- {md_text(note)}" for note in result.notes]
+        lines.append("")
 
     findings = ordered_findings(result.findings)
     counts = dict.fromkeys(FindingKind, 0)
@@ -87,14 +88,21 @@ def render_markdown(result: AuditResult, *, max_findings: int = MAX_MARKDOWN_FIN
             for kind, count in counts.items()
             if count
         )
-        lines += [f"**{len(findings)} findings:** {parts}.", ""]
+        lines += [f"**{plural(len(findings), 'finding')}:** {parts}.", ""]
         weak = [
-            f"{md_text(row.category.value)} ({row.rate.k}/{row.rate.n})"
+            f"{md_text(row.category.value)} ({row.rate.k}/{row.rate.n} on "
+            f"{plural(row.items, 'item')})"
             for row in summary.by_category
             if row.rate.k
         ]
         if weak:
-            lines += ["Categories with findings in the main phase: " + ", ".join(weak) + ".", ""]
+            lines += [
+                "Categories with findings in the main phase: "
+                + ", ".join(weak)
+                + ". "
+                + md_text(CATEGORY_INTERVALS),
+                "",
+            ]
         lines.append("| # | Kind | Category | Response | Gold | Expected | Observed |")
         lines.append("| ---: | --- | --- | --- | --- | --- | --- |")
         for number, finding in enumerate(findings[:max_findings], start=1):
@@ -118,18 +126,19 @@ def render_markdown(result: AuditResult, *, max_findings: int = MAX_MARKDOWN_FIN
                 f"{md_text(finding.shown.certificate.reason)}"
             )
         if len(findings) > max_findings:
-            lines += ["", f"{len(findings) - max_findings} more findings are in the full report."]
+            more = plural(len(findings) - max_findings, "more finding")
+            lines += ["", f"{more} {'is' if more.startswith('1 ') else 'are'} in the full report."]
         lines.append("")
     else:
         lines += [
-            f"**No findings** in the {summary.calls} grader calls made. This says what was "
-            "tried and observed, not that the grader is correct.",
+            f"**No findings** in the {plural(summary.calls, 'grader call')} made. This says "
+            "what was tried and observed, not that the grader is correct.",
             "",
         ]
     lines.append(
         "_A finding is an observed verdict that differs from what the case's certificate "
-        "requires (or, under a fault check, from the clean run). Rates use the main phase "
-        "only._"
+        "requires (or, under a fault check, from the clean run). Rates and the error pattern "
+        "use the main phase only._"
     )
     return "\n".join(lines) + "\n"
 

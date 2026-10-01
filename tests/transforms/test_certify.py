@@ -107,12 +107,19 @@ def test_certify_step_variant_and_mutant() -> None:
     variant = _op("t.v", CaseKind.VARIANT, CertMethod.CAS)
     step = certify_step(number, variant, "0.5", "1/2", defining=True)
     assert isinstance(step, Step)
-    assert step.reason == "t.v: Do something; sympy reads both as 1/2"
-    assert step.evidence == (("value", "1/2"),) and step.uses_sympy
+    # Numbers are read as exact fractions without sympy (review finding: the reason said
+    # "sympy" and the evidence recorded a sympy version that played no part).
+    assert step.reason == (
+        "t.v: Do something; misgrade's number reader (exact fractions) reads both as 1/2"
+    )
+    assert step.evidence == (("value", "1/2"),) and not step.uses_sympy
     mutant = _op("t.m", CaseKind.MUTANT, CertMethod.STRUCTURAL)
     wrong = certify_step(number, mutant, "0.5", "0.6", defining=True)
     assert isinstance(wrong, Step)
-    assert "misgrade's number reader reads the case as 3/5 and the gold as 1/2" in wrong.reason
+    assert (
+        "misgrade's number reader (exact fractions) reads the case as 3/5 and the gold as 1/2"
+        in wrong.reason
+    )
     assert wrong.evidence == (("gold_value", "1/2"), ("case_value", "3/5"))
     # a mutant operator that is not the defining step only has to keep the meaning
     later = certify_step(number, mutant, "0.6", "3/5", defining=False)
@@ -197,7 +204,11 @@ def test_certify_equivalent_and_different() -> None:
     assert certify_equivalent(number, "0.5", "x", method=CertMethod.CONSTRUCTION) is not None
     cas = certify_equivalent(number, "0.5", "1/2", method=CertMethod.CAS)
     assert cas is not None and cas.claim is Claim.EQUIVALENT
-    assert dict(cas.evidence) == {"value": "1/2", "sympy": sympy.__version__}
+    assert dict(cas.evidence) == {"value": "1/2"}
+    latex = item(AnswerType.LATEX, "\\frac{1}{2}")
+    by_sympy = certify_equivalent(latex, "\\frac{1}{2}", "0.5", method=CertMethod.CAS)
+    assert by_sympy is not None and by_sympy.reason == "sympy reads both as 1/2"
+    assert dict(by_sympy.evidence) == {"value": "1/2", "sympy": sympy.__version__}
     assert certify_equivalent(number, "0.5", "0.6", method=CertMethod.CAS) is None
     different = certify_different(number, "0.6", method=CertMethod.CAS)
     assert different is not None and different.claim is Claim.DIFFERENT

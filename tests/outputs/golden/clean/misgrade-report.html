@@ -184,13 +184,13 @@ A <strong>finding</strong> is an observed verdict that differs from what the cas
 </p>
 <section id="categories">
 <h2>Rates by category</h2>
-<p class="muted">Variant categories: equivalent answers rejected (false negatives); mutant categories: wrong answers accepted (false positives). Surface variants change only the text around the answer; notation variants write the same value another standard way.</p>
+<p class="muted">Variant categories: equivalent answers rejected (false negatives); mutant categories: wrong answers accepted (false positives). Surface variants change only the text around the answer; notation variants write the same value another standard way. A category&#x27;s cases are its operators applied to every item, not independent draws: its 95% interval is conditional on these items and operators (per-operator counts are in the card).</p>
 <div class="scroll"><table>
-<thead><tr><th>Category</th><th>Kind</th><th>Tier</th><th class="num">Findings / cases</th><th class="num">Rate</th><th>95% CI</th></tr></thead>
+<thead><tr><th>Category</th><th>Kind</th><th>Tier</th><th class="num">Items</th><th>By operator (findings / cases)</th><th class="num">Findings / cases</th><th class="num">Rate</th><th>95% CI</th></tr></thead>
 <tbody>
-<tr><td>whitespace</td><td>false negative</td><td>surface</td><td class="num">0 / 1</td><td class="num">0.0%</td><td><span class="ci" role="img" aria-label="95% interval 0.0% to 79.3%"><span class="ci-range" style="left:0.0%;width:79.3%"></span><span class="ci-point" style="left:0.0%"></span></span></td></tr>
-<tr><td>near-miss</td><td>false positive</td><td><span class="muted">-</span></td><td class="num">0 / 1</td><td class="num">0.0%</td><td><span class="ci" role="img" aria-label="95% interval 0.0% to 79.3%"><span class="ci-range" style="left:0.0%;width:79.3%"></span><span class="ci-point" style="left:0.0%"></span></span></td></tr>
-<tr><td>hedge</td><td>false positive</td><td><span class="muted">-</span></td><td class="num">0 / 1</td><td class="num">0.0%</td><td><span class="ci" role="img" aria-label="95% interval 0.0% to 79.3%"><span class="ci-range" style="left:0.0%;width:79.3%"></span><span class="ci-point" style="left:0.0%"></span></span></td></tr>
+<tr><td>whitespace</td><td>false negative</td><td>surface</td><td><span class="num">1</span></td><td><code>ws.trailing-space</code> 0/1</td><td class="num">0 / 1</td><td class="num">0.0%</td><td><span class="ci" role="img" aria-label="95% interval 0.0% to 79.3%"><span class="ci-range" style="left:0.0%;width:79.3%"></span><span class="ci-point" style="left:0.0%"></span></span></td></tr>
+<tr><td>near-miss</td><td>false positive</td><td><span class="muted">-</span></td><td><span class="num">1</span></td><td><code>number.plus-one</code> 0/1</td><td class="num">0 / 1</td><td class="num">0.0%</td><td><span class="ci" role="img" aria-label="95% interval 0.0% to 79.3%"><span class="ci-range" style="left:0.0%;width:79.3%"></span><span class="ci-point" style="left:0.0%"></span></span></td></tr>
+<tr><td>hedge</td><td>false positive</td><td><span class="muted">-</span></td><td><span class="num">1</span></td><td><code>mc.hedge-next</code> 0/1</td><td class="num">0 / 1</td><td class="num">0.0%</td><td><span class="ci" role="img" aria-label="95% interval 0.0% to 79.3%"><span class="ci-range" style="left:0.0%;width:79.3%"></span><span class="ci-point" style="left:0.0%"></span></span></td></tr>
 </tbody>
 </table></div>
 </section>
@@ -200,7 +200,7 @@ A <strong>finding</strong> is an observed verdict that differs from what the cas
 </section>
 <section id="pattern">
 <h2>Error pattern</h2>
-<p class="muted">No case findings, so no pattern.</p>
+<p class="muted">No main-phase case findings, so no pattern.</p>
 </section>
 <section id="findings">
 <h2>Findings (0)</h2>

@@ -1,11 +1,11 @@
-# misgrade as a GitHub Action (composite). Owner: builder D.
+# misgrade as a GitHub Action (composite).
 #
 # Inputs reach the scripts only through environment variables: no ${{ }} expression is ever
 # interpolated into a run: script (a grader path or gate text cannot inject shell code).
 #
 # Uploading SARIF to code scanning needs `permissions: security-events: write` in the calling
 # job; without it (pull requests from forks) the upload step fails without failing the action.
-# The action fails exactly when misgrade exits with a non-zero code (a --fail-on gate held: 1).
+# The action fails exactly when misgrade exits with a non-zero code (the --fail-on gate failed: 1).
 name: misgrade
 description: Audit a grader (reward function, verifier or eval scorer) with answers certified equivalent to the gold and answers certified wrong. No model calls, no API key.
 author: Mohammad Hijjawi
@@ -89,7 +89,7 @@ inputs:
 
 outputs:
   exit-code:
-    description: The exit code of misgrade audit (0 ok, 1 a fail-on condition held, 2 usage, 3 grader not loadable, 4 internal).
+    description: The exit code of misgrade audit (0 ok, 1 the fail-on gate failed, 2 usage, 3 grader not loadable, 4 internal).
     value: ${{ steps.audit.outputs.exit-code }}
   output-dir:
     description: The directory with the outputs.

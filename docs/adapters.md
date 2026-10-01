@@ -1,7 +1,7 @@
 # Adapters, the runner and the fault checks
 
-Owner: builder B. This page says how misgrade loads and calls the grader under test, how it
-isolates it, and how the runtime fault checks provoke faults. The contract is in
+This page says how misgrade loads and calls the grader under test, how it isolates it,
+and how the runtime fault checks provoke faults. The contract is in
 [design.md](design.md) sections 5 and 7.
 
 ## Naming a grader
@@ -11,14 +11,23 @@ isolates it, and how the runtime fault checks provoke faults. The contract is in
 | Target | Example | Becomes |
 | --- | --- | --- |
 | a module function | `my_rewards:compute_score` | imported by name in the worker |
-| a file function | `path/to/rewards.py:compute_score` | the file is imported (its folder first on `sys.path`, so it can import its siblings) |
+| a file function | `path/to/rewards.py:compute_score` | the file is imported under its own module name (`rewards`) with its folder first on `sys.path`, as `python -c "import rewards"` from that folder would: it can import its siblings, and processes it starts (a `ProcessPoolExecutor`) can import its functions by name |
 | a framework file | `grader.json`, `promptfooconfig.yaml`, `gsm8k.yaml` | read by the `openai`, `promptfoo` or `lm-eval` adapter |
 | a Python callable | `misgrade.audit(my_function)` | `module:qualname` when a fresh interpreter can import it, `path/to/file.py:qualname` when its module was loaded from a file under another name, else an in-process spec |
 | a mapping or a list | `misgrade.audit({"type": "string_check", ...})` | an inline configuration for `openai`, `promptfoo` (also a list of assertions) or `lm-eval` |
 | a `GraderSpec` | | used as is |
 
+A file is imported under a made-up module name (`misgrade_target_<stem>_<hash>`) only when its
+own name cannot be used: another module of that name is already imported, the name is a
+standard-library module's, or the stem is not a module name (`my-rewards.py`). misgrade then
+issues a `MisgradeWarning`: a process pool the grader starts cannot import functions from such
+a module, so rename the file if the grader uses one.
+
 Without `--adapter`, every adapter except `callable` is asked whether it recognises the target
-(in name order; recognising must not import anything), and `callable` is the fallback. A
+(in name order; recognising must not import anything), and `callable` is the fallback. For a
+file, the `verl` adapter recognises a module-level `compute_score` whose parameters include
+`solution_str` and `ground_truth` (or that takes `**kwargs` and reads both): it reads the
+signature with `ast`, so the words elsewhere in the file (a helper's parameter) do not count. A
 Python callable whose parameter names follow a framework's convention gets that adapter
 (`solution_str` and `ground_truth`: verl; first parameter `completions`: TRL; async
 `(state, target)`: Inspect; `completion` with `parser`, `state`, `info` or `task`:
@@ -27,7 +36,9 @@ verifiers); the `callable` adapter does the same when it loads such a function.
 Lambdas, closures, bound methods, instances and functions defined in `__main__` cannot be
 imported by a spawned worker. They get an in-process spec (`in_process_only(spec)` is true)
 that works only with `Isolation.NONE`; with the default `subprocess` isolation,
-`open_session` raises `GraderLoadError` saying so.
+`open_session` raises `GraderLoadError` saying so. `misgrade.audit` grades them with
+`Isolation.NONE` itself, and then leaves out what an in-process run cannot do safely (next
+section).
 
 Options (`--option KEY=VALUE`, `options=`) must be JSON-serializable: they are sent to the
 worker and recorded in the result. Unknown option names are errors.
@@ -159,9 +170,13 @@ timeouts work the same on Windows, macOS and Linux and from any thread.
 
 With `Isolation.NONE` the grader runs in the calling process, each call in a daemon thread: a
 call past the deadline is reported as a `timeout` but cannot be stopped and keeps running in
-the background. A new session (or `restart()`) loads the grader object again but not its
-module, so module-level state carries over from one session to the next, including into the
-fault checks.
+the background. A call that never releases the GIL (a parser computing `10^(10^10)`) does not
+even let the wait for it end, so `misgrade.audit` with `Isolation.NONE` leaves out the
+`pathological` cases (unless `include` names the category), the `timeout` check (whose poison
+they are) and the `worker-death` check (there is no worker to end); the result's config and
+notes record this and a `MisgradeWarning` says so. A new session (or `restart()`) loads the
+grader object again but not its module, so module-level state carries over from one session
+to the next, including into the fault checks.
 
 `GraderInfo.source` is `path:line` of the grading function (relative to the working directory
 when inside it), or `path:1` of a configuration file. `GraderInfo.versions` lists the grading
@@ -175,7 +190,10 @@ misgrade's re-implementation ran.
 observations whose `reference` is the clean-run verdict; `models.to_finding` decides what is a
 finding (a changed decision, or an error or crash where the clean run had a score; never a
 timeout). Calls made only to provoke a fault have no reference: they count as calls and are
-never compared. The exact procedure is in the docstring of `misgrade.runner.faults`; in short:
+never compared; a provoking `worker-death` call that crashed because misgrade ended the process
+is counted in the summary's `injected`, not in `errors`. A requested check that compared no
+verdict (its share of the budget was too small, or nothing could be re-graded) is named in the
+result's notes. The exact procedure is in the docstring of `misgrade.runner.faults`; in short:
 
 The budget is split evenly between the modes that can run (earlier modes get the remainder);
 `s` is a mode's share and every mode makes at most `s` calls.
@@ -185,7 +203,7 @@ The budget is split evenly between the modes that can run (earlier modes get the
 | `repeat` | the sample is graded twice in one worker; the second pass is compared | `s // 2` |
 | `order` | the sample in a seeded shuffled order | `s` |
 | `concurrency` | the sample from `RunConfig.concurrency` threads at once, none of them the main thread | `s` |
-| `timeout` | the pathological cases (at most `max(1, s // 4)`) are graded with a soft timeout that leaves the call running in the same process, until one times out; then the sample is re-graded in that process | `s` minus the poison calls |
+| `timeout` | the poison (at most `max(1, s // 4)` calls) is graded with a soft timeout that leaves the call running in the same process, until one times out; then the sample is re-graded in that process. The poison is the pathological cases (number and latex items) or, for items of the other types, a 102,001-character stress response (`stress.long-response`: digits, spaces and open brackets that make backtracking regular expressions and recursive parsers slow), so the check runs for every answer type | `s` minus the poison calls |
 | `worker-death` | a call runs while the worker kills the first multiprocessing child the grader started; if there is none, the worker process ends itself 20 ms into a second call; then the sample is re-graded (in the same process, or in the replacement) | `s - 1` or `s - 2` |
 
 The sample interleaves accepted and rejected clean-run verdicts (each shuffled with the seed),

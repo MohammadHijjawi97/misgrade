@@ -1,7 +1,7 @@
 """Seed items: small hand-written gold sets per answer type, bundled with misgrade (MIT), and
 the reader for users' own JSONL files.
 
-Owner: builder D. The bundled sets are misgrade's own: no third-party dataset is vendored.
+The bundled sets are misgrade's own: no third-party dataset is vendored.
 Optional loaders for public datasets (planned) will download on demand, name their licence,
 and never be used by default.
 

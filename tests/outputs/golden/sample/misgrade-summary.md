@@ -11,7 +11,7 @@ callable grader `toy_rewards:compute_score` · 2 items, 5 cases, 9 grader calls 
 
 **4 findings:** 2 false negatives, 1 false positive, 1 fault.
 
-Categories with findings in the main phase: whitespace (1/1), near-miss (1/1).
+Categories with findings in the main phase: whitespace (1/1 on 1 item), near-miss (1/1 on 1 item). A category's cases are its operators applied to every item, not independent draws: its 95% interval is conditional on these items and operators (per-operator counts are in the card).
 
 | # | Kind | Category | Response | Gold | Expected | Observed |
 | ---: | --- | --- | --- | --- | --- | --- |
@@ -27,4 +27,4 @@ Certificates (why each expected verdict holds):
 3. `number-001::number.plus-one`: 43 != 42
 4. `number-001::identity`: the response is the gold answer itself
 
-_A finding is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Rates use the main phase only._
+_A finding is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Rates and the error pattern use the main phase only._

@@ -44,7 +44,6 @@ def test_a_session_that_loses_verdicts_is_a_bug() -> None:
         grade_cases(ShortSession(lambda a, g: 1.0), [identity_case(make_item())] * 2)
 
 
-@pytest.mark.needs("runner")
 def test_open_session_grades_in_a_subprocess() -> None:
     from misgrade.models import GraderSpec, RunConfig
     from misgrade.runner import open_session

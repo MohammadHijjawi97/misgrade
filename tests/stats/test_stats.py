@@ -221,10 +221,78 @@ def test_only_main_phase_enters_rates() -> None:
     summary = summarize(main + extra, findings_of(main + extra[:1]))
     assert (summary.fp.k, summary.fp.n) == (0, 1)
     assert summary.cases == 2 and summary.calls == 5 and summary.errors == 1
-    # The search-phase false positive is in the pattern profile.
-    assert [(row.kind, row.category, row.count) for row in summary.pattern] == [
+    # The search-phase false positive is counted on its own, not in the pattern profile.
+    assert summary.pattern == ()
+    assert [(row.kind, row.category, row.count) for row in summary.search_findings] == [
         (FindingKind.FALSE_POSITIVE, Category.NEAR_MISS, 1)
     ]
+
+
+def test_the_pattern_does_not_depend_on_the_search() -> None:
+    """Review finding: search findings (chosen adaptively, and differently by each engine)
+    shifted the shares; the profile now comes from the main phase only."""
+    main = [
+        obs(identity_case(NUMBER), accept()),
+        obs(make_mutant(NUMBER, "43"), accept()),
+        obs(
+            make_mutant(NUMBER, "43 or 42", ops=("hedge.or-next",), category=Category.HEDGE),
+            reject(),
+        ),
+        obs(make_variant(NUMBER, "42 "), reject()),
+    ]
+    searched = [
+        obs(
+            make_mutant(
+                NUMBER,
+                f"43 or 42{' ' * n}",
+                ops=("hedge.or-next", f"ws.extra-{n}"),
+                category=Category.HEDGE,
+            ),
+            accept(),
+            Phase.SEARCH,
+        )
+        for n in range(1, 4)
+    ]
+    without = summarize(main, findings_of(main))
+    with_search = summarize(main + searched, findings_of(main + searched))
+    assert with_search.pattern == without.pattern
+    assert [(row.category, row.share) for row in without.pattern] == [
+        (Category.WHITESPACE, 1.0),
+        (Category.NEAR_MISS, 1.0),
+    ]
+    assert [(row.kind, row.category, row.count) for row in with_search.search_findings] == [
+        (FindingKind.FALSE_POSITIVE, Category.HEDGE, 3)
+    ]
+
+
+def test_category_rows_give_items_and_operators() -> None:
+    """Review finding: a category's cases are its operators on every item, not independent
+    draws; the rows say how many items and give k/n per operator."""
+    observations = [obs(identity_case(NUMBER), accept()), obs(identity_case(OTHER), accept())]
+    for item in (NUMBER, OTHER):
+        observations += [
+            obs(make_variant(item, f"{item.gold},", ops=("sep.comma",)), accept()),
+            obs(make_variant(item, f"{item.gold} ", ops=("ws.trailing-space",)), reject()),
+        ]
+    (row,) = summarize(observations, findings_of(observations)).by_category
+    assert (row.rate.k, row.rate.n, row.items) == (2, 4, 2)
+    assert [(op.operator, op.k, op.n) for op in row.operators] == [
+        ("sep.comma", 0, 2),
+        ("ws.trailing-space", 2, 2),
+    ]
+
+
+def test_a_call_ended_by_the_worker_death_check_is_not_an_error() -> None:
+    """Review finding: the call misgrade kills on purpose made errors>0 fail a clean grader."""
+    ended = Verdict.failure(CallStatus.CRASH, "the worker-death check ended the call")
+    observations = [
+        obs(identity_case(NUMBER), accept()),
+        fault_obs(ended, None, FaultMode.WORKER_DEATH),  # provoked: misgrade's own doing
+        fault_obs(CRASH, accept(), FaultMode.WORKER_DEATH),  # compared: the grader's
+        fault_obs(CRASH, None, FaultMode.TIMEOUT),  # poison that crashed: the grader's
+    ]
+    summary = summarize(observations, [])
+    assert (summary.injected, summary.errors, summary.calls) == (1, 2, 4)
 
 
 def fault_obs(verdict: Verdict, reference: Verdict | None, mode: FaultMode) -> Observation:

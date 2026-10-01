@@ -100,9 +100,16 @@ REPEAT_CASES = [
 @pytest.fixture(scope="module")
 def grade() -> Any:
     """The grader loaded with misgrade's public adapter API (its calling convention
-    needs the adapter)."""
-    adapters = pytest.importorskip("misgrade.adapters")
-    models = pytest.importorskip("misgrade.models")
+    needs the adapter). Without misgrade every test fails: a skip would turn known
+    regressions green."""
+    try:
+        from misgrade import adapters, models
+    except ImportError:
+        pytest.fail(
+            f"these regression tests load the {ADAPTER} grader through misgrade; "
+            "install it: pip install misgrade",
+            pytrace=False,
+        )
     spec = models.GraderSpec(adapter=ADAPTER, target=GRADER, options=OPTIONS)
     grader = adapters.load_grader(spec)
 

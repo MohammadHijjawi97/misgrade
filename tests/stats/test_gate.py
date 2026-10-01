@@ -94,6 +94,13 @@ def test_syntax_errors(expression: str, message: str, column: int | None) -> Non
     if column is not None:
         assert f"column {column}:" in text
         assert "Metrics: fp_rate" in text
+    assert "?." not in text
+
+
+def test_a_suggestion_ends_the_sentence() -> None:
+    with pytest.raises(GateSyntaxError) as caught:
+        parse_gate("fpr>0.1")
+    assert "unknown metric 'fpr'; did you mean 'fp'? Metrics:" in str(caught.value)
 
 
 def test_non_string_is_a_syntax_error() -> None:
@@ -131,12 +138,83 @@ def test_nothing_holds() -> None:
 def test_unmeasured_rates_never_hold() -> None:
     empty = summary(fault=wilson(0, 0), fn=wilson(0, 0))
     result = evaluate_gate(parse_gate("fault_rate>=0, fn_rate.high<=1, fp>=1"), empty)
-    assert result.failed  # because of fp>=1 only
+    assert result.failed
     assert result.held == ("fp=1 >= 1",)
     assert result.unmeasured == (
         "fault_rate>=0: not measured (0 decided cases)",
         "fn_rate.high<=1: not measured (0 decided cases)",
     )
+
+
+def test_unmeasured_conditions_fail_the_gate() -> None:
+    """Review finding: a gate whose conditions could not be measured passed (exit 0)."""
+    empty = summary(fault=wilson(0, 0), fn=wilson(0, 0))
+    result = evaluate_gate(parse_gate("fault_rate>0, fn_rate>0.1"), empty)
+    assert result.failed and result.held == ()
+    assert result.reasons == (
+        "fault_rate>0: not measured (0 decided cases); an unmeasured condition fails the gate",
+        "fn_rate>0.1: not measured (0 decided cases); an unmeasured condition fails the gate",
+    )
+    allowed = evaluate_gate(parse_gate("fault_rate>0, fn_rate>0.1"), empty, allow_unmeasured=True)
+    assert not allowed.failed and allowed.reasons == () and len(allowed.unmeasured) == 2
+
+
+@pytest.mark.parametrize(
+    ("expression", "changes"),
+    [
+        ("fp>0", {"fp": wilson(0, 0), "pattern": (), "search_findings": ()}),
+        ("fn>0", {"fn": wilson(0, 0), "pattern": (), "search_findings": ()}),
+        ("self_validation>0", {"self_validation": wilson(0, 0)}),
+        ("faults>0", {"fault": wilson(0, 0)}),
+        ("errors>0", {"calls": 0}),
+        (
+            "findings>0",
+            {
+                "fp": wilson(0, 0),
+                "fn": wilson(0, 0),
+                "self_validation": wilson(0, 0),
+                "fault": wilson(0, 0),
+                "pattern": (),
+                "search_findings": (),
+            },
+        ),
+    ],
+)
+def test_counts_of_what_was_not_measured_fail_the_gate(
+    expression: str, changes: dict[str, object]
+) -> None:
+    result = evaluate_gate(parse_gate(expression), summary(**changes))
+    assert result.failed and result.held == () and len(result.unmeasured) == 1
+
+
+def test_a_search_finding_measures_its_count() -> None:
+    # The sample's search phase found a false negative: fn>0 is measured even with fn.n == 0.
+    result = evaluate_gate(parse_gate("fn>0"), summary(fn=wilson(0, 0), pattern=()))
+    assert result.held == ("fn=1 > 0",) and result.unmeasured == ()
+
+
+def test_a_grader_that_fails_every_call_fails_every_gate() -> None:
+    """Review finding: a reward function that raised on every call passed 'fp>0,fn>0'."""
+    nothing = summary(
+        calls=300,
+        errors=300,
+        fp=wilson(0, 0),
+        fn=wilson(0, 0),
+        self_validation=wilson(0, 0),
+        fault=wilson(0, 0),
+        pattern=(),
+        search_findings=(),
+    )
+    for allow in (False, True):
+        result = evaluate_gate(parse_gate("errors>1000"), nothing, allow_unmeasured=allow)
+        assert result.failed and result.held == ()
+        assert result.no_scores == (
+            "every grader call (300 of 300) ended without a score, so nothing was measured"
+        )
+    # Calls misgrade ended on purpose are not the grader's.
+    injected = summary(calls=3, errors=2, injected=1)
+    assert evaluate_gate(parse_gate("errors>5"), injected).no_scores is not None
+    assert evaluate_gate(parse_gate("errors>5"), summary(calls=3, errors=1)).no_scores is None
 
 
 def test_error_rate_uses_all_calls() -> None:

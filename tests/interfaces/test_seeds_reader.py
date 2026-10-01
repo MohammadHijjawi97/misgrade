@@ -33,6 +33,10 @@ def test_read_items(tmp_path: Path) -> None:
             ['{"id": "a", "type": "bool", "gold": "true"}'] * 2,
             r"f\.jsonl:2: duplicate id 'a'",
         ),
+        # a missing field is named as missing, not as "must be a string" (review finding)
+        (['{"gold": "42"}'], r"f\.jsonl:1: missing required field 'id' \(an item needs"),
+        (['{"id": "a"}'], r"f\.jsonl:1: missing required field 'gold'"),
+        (['{"id": 7, "gold": "42"}'], r"f\.jsonl:1: 'id' must be a string"),
     ],
 )
 def test_parse_errors_name_the_line(lines: list[str], message: str) -> None:
@@ -45,7 +49,6 @@ def test_missing_file(tmp_path: Path) -> None:
         read_items(tmp_path / "missing.jsonl")
 
 
-@pytest.mark.needs("detect")
 def test_untyped_items_are_detected(tmp_path: Path) -> None:
     items = parse_items(['{"id": "a", "gold": "42"}'], source="f.jsonl")
     assert items[0].answer_type is AnswerType.NUMBER

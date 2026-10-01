@@ -79,9 +79,11 @@ class FakeGate:
     def parse(self, text: str) -> Gate:
         return Gate(conditions=(), text=text)
 
-    def evaluate(self, gate: Gate, summary: Any) -> GateResult:
+    def evaluate(self, gate: Gate, summary: Any, *, allow_unmeasured: bool = False) -> GateResult:
         held = ("fp=1 (1/2) > 0",) if "fail" in gate.text else ()
-        return GateResult(failed=bool(held), held=held, unmeasured=("fault_rate (n = 0)",))
+        return GateResult(
+            failed=bool(held), held=held, unmeasured=("fault_rate (n = 0)",), reasons=held
+        )
 
 
 @pytest.fixture
@@ -145,7 +147,8 @@ def test_audit_prints_the_summary(
         (GraderLoadError("no module named rewards"), ExitCode.GRADER_ERROR, "could not be loaded"),
         (ConfigError("bad option"), ExitCode.USAGE, "bad option"),
         (MisgradeError("plugin failed"), ExitCode.INTERNAL, "plugin failed"),
-        (NotImplementedError("builder X: y"), ExitCode.INTERNAL, "not implemented yet"),
+        # No special case for NotImplementedError: it is a bug, shown with its traceback.
+        (NotImplementedError("y"), ExitCode.INTERNAL, "internal error (NotImplementedError)"),
         (RuntimeError("boom"), ExitCode.INTERNAL, "internal error (RuntimeError)"),
         (KeyboardInterrupt(), ExitCode.INTERNAL, "interrupted"),
     ],
@@ -479,3 +482,143 @@ def test_format_none_writes_nothing(audits: list[dict[str, Any]], tmp_path: Path
     out = tmp_path / "never"
     assert main(["audit", "m:f", "--format", "none", "--out", str(out), "--quiet"]) == ExitCode.OK
     assert not out.exists()
+
+
+# --- regressions from the review of the integrated pipeline ------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("option", "value", "message"),
+    [
+        ("--fail-on", "fpr>0.1", "unknown metric 'fpr'; did you mean 'fp'? Metrics:"),
+        ("--format", "card,xml", "xml"),
+    ],
+)
+def test_output_typos_are_rejected_before_the_audit_runs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    option: str,
+    value: str,
+    message: str,
+) -> None:
+    """A typo in --fail-on or --format used to cost the whole audit (and wrote nothing)."""
+    ran: list[str] = []
+    monkeypatch.setattr(misgrade.api, "audit", lambda *a, **k: ran.append("audit"))
+    out = tmp_path / "out"
+    assert main(["audit", "m:f", option, value, "--out", str(out)]) == ExitCode.USAGE
+    assert ran == [] and not out.exists()
+    err = capsys.readouterr().err
+    assert message in err and "?." not in err
+    saved = _saved(tmp_path)
+    assert main(["report", str(saved), option, value, "--out", str(out)]) == ExitCode.USAGE
+    assert main(["minimize", str(saved), option, value, "--out", str(out)]) == ExitCode.USAGE
+
+
+def test_the_files_are_written_before_the_summary_is_printed(
+    audits: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def broken_summary(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("the terminal went away")
+
+    monkeypatch.setattr(misgrade.outputs.console, "print_summary", broken_summary)
+    out = tmp_path / "out"
+    assert main(["audit", "m:f", "--format", "result", "--out", str(out)]) == ExitCode.INTERNAL
+    assert (out / "misgrade-result.json").is_file()
+
+
+def test_minimize_keeps_the_recorded_adapter_options(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The options of the audit are in the result; minimize used to drop them and still
+    record them as used."""
+    fakes = MinimizeFakes(monkeypatch)
+    recorded = _unminimized()
+    recorded = replace(
+        recorded,
+        grader=replace(recorded.grader, options={"argument_order": "gold-answer", "k": 0}),
+    )
+    saved = _saved(tmp_path, recorded)
+    out = ["--format", "result", "--out", str(tmp_path / "o"), "--quiet"]
+    assert main(["minimize", str(saved), *out]) == ExitCode.OK
+    assert fakes.opened[-1].options == {"argument_order": "gold-answer", "k": 0}
+    assert main(["minimize", str(saved), "--option", "k=1", *out]) == ExitCode.OK
+    assert fakes.opened[-1].options == {"argument_order": "gold-answer", "k": 1}
+
+
+class _Cp1252Stdout:
+    """A Windows console pipe: text in cp1252, strict errors, bytes underneath."""
+
+    def __init__(self) -> None:
+        import io
+
+        self.raw = io.BytesIO()
+        self.stream = io.TextIOWrapper(self.raw, encoding="cp1252", errors="strict")
+
+    def text(self) -> str:
+        self.stream.flush()
+        return self.raw.getvalue().decode("cp1252", errors="replace")
+
+
+def _cp1252(monkeypatch: pytest.MonkeyPatch) -> _Cp1252Stdout:
+    """Replace stdout inside the test body (pytest sets its capture after fixtures run)."""
+    import sys
+
+    pipe = _Cp1252Stdout()
+    monkeypatch.setattr(sys, "stdout", pipe.stream)
+    return pipe
+
+
+def test_a_cp1252_pipe_gets_escapes_not_a_crash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On Windows `misgrade list-transforms --type mc > file` exited 4 (UnicodeEncodeError on
+    the 解 master-key text)."""
+    cp1252 = _cp1252(monkeypatch)
+    assert main(["list-transforms", "--type", "mc"]) == ExitCode.OK
+    text = cp1252.text()
+    assert "\\u89e3" in text  # 解, the chinese-solution master key, escaped
+
+
+def test_the_card_on_a_cp1252_pipe_is_utf8(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`misgrade card result.json > card.json` exited 4 on a fullwidth character."""
+    cp1252 = _cp1252(monkeypatch)
+    result = sample_result()
+    name = "reward ４２"  # fullwidth digits, which cp1252 cannot encode
+    saved = _saved(tmp_path, replace(result, grader=replace(result.grader, name=name)))
+    assert main(["card", str(saved)]) == ExitCode.OK
+    cp1252.stream.flush()
+    card = json.loads(cp1252.raw.getvalue().decode("utf-8"))
+    assert card["grader"]["name"] == name
+
+
+def test_a_summary_with_unencodable_text_on_a_cp1252_pipe(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cp1252 = _cp1252(monkeypatch)
+    result = sample_result()
+    finding = result.findings[1]
+    reason = "misgrade's number reader reads both as 42 (４２)"
+    case = replace(finding.case, certificate=replace(finding.case.certificate, reason=reason))
+    odd = replace(result, findings=(replace(finding, case=case),))
+    monkeypatch.setattr(misgrade.api, "audit", lambda *a, **k: odd)
+    out = tmp_path / "out"
+    assert main(["audit", "m:f", "--format", "result", "--out", str(out)]) == ExitCode.OK
+    assert (out / "misgrade-result.json").is_file()
+    assert "\\uff14\\uff12" in cp1252.text()
+
+
+def test_audit_help_states_the_defaults(capsys: pytest.CaptureFixture[str]) -> None:
+    """Review finding: --budget, --seed, --threshold, --isolation had no help and no default."""
+    assert main(["audit", "--help"]) == ExitCode.OK
+    text = " ".join(capsys.readouterr().out.split())
+    for expected in (
+        "(default: 2000)",
+        "same seed, same cases (default: 0)",
+        "(default: 0.5)",
+        "(default: subprocess)",
+        "report findings as found, not minimized",
+        "at least 'id' and 'gold'",
+        "--allow-unmeasured",
+    ):
+        assert expected in text, expected
+    assert main(["compare", "--help"]) == ExitCode.OK
+    assert "two or more graders" in " ".join(capsys.readouterr().out.split())

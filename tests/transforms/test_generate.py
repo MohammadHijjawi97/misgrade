@@ -127,7 +127,7 @@ def test_chains_compose_step_by_step() -> None:
     assert variant_chain.response == "The answer is $1,250$."
     assert variant_chain.category is Category.THOUSANDS_SEPARATOR
     keys = [key for key, _ in variant_chain.certificate.evidence]
-    assert keys == ["value", "sympy"]
+    assert keys == ["value"]  # numbers are read as exact fractions: no sympy involved
 
 
 @pytest.mark.parametrize(

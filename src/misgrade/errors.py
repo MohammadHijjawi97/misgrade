@@ -16,6 +16,7 @@ __all__ = [
     "GateSyntaxError",
     "GraderLoadError",
     "MisgradeError",
+    "MisgradeWarning",
     "SeedFormatError",
     "UnknownNameError",
 ]
@@ -65,3 +66,8 @@ class CertificationError(MisgradeError):
     The case is dropped and never graded; the error is raised only when ``MISGRADE_STRICT=1`` is
     set (the test suite sets it), where it points at a bug in the operator.
     """
+
+
+class MisgradeWarning(UserWarning):
+    """Something the user should know that does not stop the audit: a grader file imported
+    under a made-up module name, an audit run in-process that cannot stop a stuck call."""

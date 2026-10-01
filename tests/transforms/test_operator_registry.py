@@ -75,7 +75,6 @@ def test_an_operator_needs_a_description(scratch: list[str]) -> None:
         variant("test.undocumented", category=Category.WHITESPACE)(undocumented)
 
 
-@pytest.mark.needs("transforms")
 def test_identity_comes_first() -> None:
     from misgrade.transforms import generate_cases
 

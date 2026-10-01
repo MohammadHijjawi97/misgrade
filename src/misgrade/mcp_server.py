@@ -1,6 +1,6 @@
 """The MCP server: lets a coding agent audit the reward function or grader it just wrote.
 
-Owner: builder D. Needs the optional ``mcp`` package (``pip install "misgrade[mcp]"``, mcp 2.x:
+Needs the optional ``mcp`` package (``pip install "misgrade[mcp]"``, mcp 2.x:
 ``mcp.server.mcpserver.MCPServer``); imported only by ``misgrade mcp``. The tools are plain
 functions in this module, so they can be used (and tested) without the SDK.
 
@@ -286,6 +286,7 @@ def audit_payload(result: AuditResult, *, fail_on: str | None = None) -> dict[st
         payload["gate"] = {
             "expression": fail_on,
             "failed": outcome.failed,
+            "reasons": list(outcome.reasons),
             "held": list(outcome.held),
             "unmeasured": list(outcome.unmeasured),
         }
@@ -346,6 +347,10 @@ def _audit_grader(
 ) -> dict[str, Any]:
     if not 1 <= budget <= MAX_BUDGET:
         raise ConfigError(f"budget must be between 1 and {MAX_BUDGET}")
+    if fail_on:
+        from misgrade.gate import parse_gate
+
+        parse_gate(fail_on)  # a typo is reported before the audit runs
     if audit is None:
         from misgrade.api import audit as audit_function
 

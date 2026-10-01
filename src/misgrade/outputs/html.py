@@ -27,14 +27,17 @@ from misgrade.models import (
 )
 from misgrade.outputs import register_writer
 from misgrade.outputs._common import (
+    CATEGORY_INTERVALS,
     HEADLINES,
     KIND_LABELS,
     KIND_PLURALS,
     Headline,
+    call_notes,
     expected_decision,
     literal,
     ordered_findings,
     pct,
+    plural,
     printable,
     verdict_text,
 )
@@ -308,19 +311,8 @@ def _tiles(summary: Summary) -> list[str]:
 
 def _note(result: AuditResult) -> list[str]:
     summary = result.summary
-    extra = []
-    if summary.errors:
-        extra.append(
-            f"{summary.errors} of {summary.calls} grader calls ended without a score "
-            "(error, timeout or crash) and are in no rate's denominator"
-            + (" except as rejections (errors_as_reject)" if result.config.errors_as_reject else "")
-            + "."
-        )
-    if summary.not_evaluable:
-        extra.append(
-            f"{summary.not_evaluable} variants were not evaluable: the gold answer of their "
-            "item was not accepted."
-        )
+    extra = [f"{text[:1].upper()}{text[1:]}." for text in call_notes(result)]
+    extra += [f"Note: {text}" for text in result.notes]
     lines = [
         '<p class="note">',
         (
@@ -328,8 +320,9 @@ def _note(result: AuditResult) -> list[str]:
             "case's certificate requires (or, under a fault check, from the clean run). "
             "Certificates are established by construction, a computer algebra system or a "
             "structural comparison, never by the grader under test. Rates count the main "
-            f"phase only ({summary.cases} single-operator cases on {summary.items} items, "
-            f"{summary.calls} grader calls in all). This report says what was tried and "
+            f"phase only ({plural(summary.cases, 'single-operator case')} on "
+            f"{plural(summary.items, 'item')}, {plural(summary.calls, 'grader call')} in all). "
+            "This report says what was tried and "
             "observed; it does not say the grader is correct."
         ),
     ]
@@ -367,11 +360,12 @@ def _categories(summary: Summary) -> list[str]:
             '<p class="muted">Variant categories: equivalent answers rejected (false '
             "negatives); mutant categories: wrong answers accepted (false positives). "
             "Surface variants change only the text around the answer; notation variants "
-            "write the same value another standard way.</p>"
+            f"write the same value another standard way. {_e(CATEGORY_INTERVALS)}</p>"
         ),
         '<div class="scroll"><table>',
         (
             "<thead><tr><th>Category</th><th>Kind</th><th>Tier</th>"
+            '<th class="num">Items</th><th>By operator (findings / cases)</th>'
             '<th class="num">Findings / cases</th><th class="num">Rate</th>'
             "<th>95% CI</th></tr></thead>"
         ),
@@ -379,12 +373,15 @@ def _categories(summary: Summary) -> list[str]:
     ]
     for row in summary.by_category:
         tier = row.category.tier
+        operators = ", ".join(f"{_code(op.operator)} {op.k}/{op.n}" for op in row.operators)
         lines.append(
             _rate_row(
                 (
                     _e(row.category.value),
                     _e(KIND_LABELS[row.kind]),
                     _e(tier.value) if tier is not None else '<span class="muted">-</span>',
+                    f'<span class="num">{row.items}</span>',
+                    operators or '<span class="muted">-</span>',
                 ),
                 row.rate,
             )
@@ -421,13 +418,22 @@ def _faults(summary: Summary) -> list[str]:
 
 def _pattern(summary: Summary) -> list[str]:
     lines = ['<section id="pattern">', "<h2>Error pattern</h2>"]
+    searched = [
+        f"{_e(KIND_PLURALS[row.kind])}: {_e(row.category.value)} {row.count}"
+        for row in summary.search_findings
+    ]
+    search_line = (
+        '<p class="muted">Found by the search over compositions (chosen towards verdict '
+        f"changes, so not part of the shares): {'; '.join(searched)}.</p>"
+    )
     if not summary.pattern:
-        return [*lines, '<p class="muted">No case findings, so no pattern.</p>', "</section>"]
+        lines.append('<p class="muted">No main-phase case findings, so no pattern.</p>')
+        return [*lines, *([search_line] if searched else []), "</section>"]
     lines.append(
         '<p class="muted">Which errors the grader makes: the share of each kind of finding '
-        "per category (of the minimized case), search findings included. Which wrong "
-        "answers a reward accepts matters for RL training as much as how many (arXiv "
-        "2605.02909).</p>"
+        "per category, over the main-phase findings (one per planned single-operator case). "
+        "Which wrong answers a reward accepts matters for RL training as much as how many "
+        "(arXiv 2605.02909).</p>"
     )
     for kind in FindingKind:
         rows = [row for row in summary.pattern if row.kind is kind]
@@ -450,6 +456,8 @@ def _pattern(summary: Summary) -> list[str]:
                 f'style="width:{row.share * 100:.1f}%"></span></td></tr>'
             )
         lines += ["</tbody>", "</table></div>"]
+    if searched:
+        lines.append(search_line)
     lines.append("</section>")
     return lines
 

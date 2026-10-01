@@ -1,20 +1,27 @@
 """Statistics: rates with Wilson intervals, the summary of an audit, the error-pattern profile
 and the disagreement matrix of several graders.
 
-Owner: builder C. Signatures are the contract.
+Signatures are the contract.
 
 Counting rules (the same everywhere; docs/design.md, "Counting"; docs/card.md has examples):
 
-- ``self_validation``, ``fn``, ``fp`` and ``by_category`` count **main-phase** observations
-  only: one operator per case, a denominator fixed before any grading. Search-phase cases are
-  chosen adaptively and would bias a rate; their findings are reported and enter the pattern
-  profile, but not the rates. Minimize-phase observations never enter a rate.
+- ``self_validation``, ``fn``, ``fp``, ``by_category`` and the pattern profile count
+  **main-phase** observations and findings only: one operator per case, a denominator fixed
+  before any grading. Search-phase cases are chosen adaptively (towards verdict changes) and
+  would bias a rate or a share; their findings are reported, and counted per kind and
+  category in ``search_findings`` (no shares), but enter neither the rates nor the pattern.
+  Minimize-phase observations never enter a rate.
+- ``by_category`` rows also give the number of distinct items behind ``n`` and ``k`` of ``n``
+  per operator: a category's cases are its operators applied to every item, not independent
+  draws, so its Wilson interval is conditional on those items and operators.
 - ``fn`` counts non-identity variants on items whose identity case was accepted; variants on
   other items (identity rejected, failed or not graded) are ``not_evaluable``.
 - A call without a decision is in no rate's denominator, unless ``errors_as_reject`` turns it
   into a rejection (:func:`misgrade.models.decision`). ``errors`` counts every call that ended
   without a score (error, timeout, crash) in every phase, whether or not ``errors_as_reject``
-  counts it as a rejection in the rates.
+  counts it as a rejection in the rates, except the calls misgrade itself ended on purpose:
+  a ``worker-death`` call without a reference that crashed (:func:`injected_crash`) is counted
+  in ``injected`` instead.
 - ``fault`` counts fault-phase observations whose clean-run reference has an ok verdict and
   whose own call did not time out: a timeout is no evidence either way
   (:func:`misgrade.models.fault_changed`), so it is left out of the denominator as well as the
@@ -44,8 +51,10 @@ from misgrade.models import (
     FaultMode,
     FaultRate,
     Finding,
+    FindingCount,
     FindingKind,
     Observation,
+    OperatorCount,
     PatternShare,
     Phase,
     Rate,
@@ -61,6 +70,7 @@ __all__ = [
     "Z_95",
     "disagreement",
     "identity_verdicts",
+    "injected_crash",
     "pattern_profile",
     "summarize",
     "wilson",
@@ -134,12 +144,17 @@ def summarize(
     identity = identity_verdicts(observations)
     self_validation, fn, fp, fault = _Tally(), _Tally(), _Tally(), _Tally()
     categories: dict[Category, _Tally] = {}
+    category_items: dict[Category, set[str]] = {}
+    operators: dict[Category, dict[str, _Tally]] = {}
     modes: dict[FaultMode, _Tally] = {}
     items: set[str] = set()
-    cases = errors = not_evaluable = 0
+    main_cases: set[str] = set()
+    cases = errors = injected = not_evaluable = 0
 
     for obs in observations:
-        if not obs.verdict.ok:
+        if injected_crash(obs):
+            injected += 1
+        elif not obs.verdict.ok:
             errors += 1
         if obs.phase is Phase.FAULT:
             if _compared(obs):
@@ -153,6 +168,7 @@ def summarize(
         case = obs.case
         cases += 1
         items.add(case.item.id)
+        main_cases.add(case.case_id)
         row = None if case.is_identity else categories.setdefault(case.category, _Tally())
         accepted = decision(obs.verdict, errors_as_reject=errors_as_reject)
         if accepted is None:
@@ -163,20 +179,29 @@ def summarize(
         )
         if case.is_identity:
             self_validation.add(accepted)
-        elif case.kind is CaseKind.MUTANT:
-            fp.add(kind is FindingKind.FALSE_POSITIVE)
-            assert row is not None
-            row.add(kind is FindingKind.FALSE_POSITIVE)
+            continue
+        if case.kind is CaseKind.MUTANT:
+            hit = kind is FindingKind.FALSE_POSITIVE
+            fp.add(hit)
         elif (
             item_identity is None
             or decision(item_identity, errors_as_reject=errors_as_reject) is not True
         ):
             not_evaluable += 1
+            continue
         else:
-            fn.add(kind is FindingKind.FALSE_NEGATIVE)
-            assert row is not None
-            row.add(kind is FindingKind.FALSE_NEGATIVE)
+            hit = kind is FindingKind.FALSE_NEGATIVE
+            fn.add(hit)
+        assert row is not None
+        row.add(hit)
+        category_items.setdefault(case.category, set()).add(case.item.id)
+        per_op = operators.setdefault(case.category, {})
+        per_op.setdefault(case.ops[0], _Tally()).add(hit)
 
+    main_findings = [f for f in findings if f.case.case_id in main_cases]
+    search_findings = [
+        f for f in findings if f.kind is not FindingKind.FAULT and f.case.case_id not in main_cases
+    ]
     return Summary(
         items=len(items),
         cases=cases,
@@ -188,13 +213,47 @@ def summarize(
         fp=fp.rate(),
         fault=fault.rate(),
         by_category=tuple(
-            CategoryRate(category, categories[category].rate())
+            CategoryRate(
+                category,
+                categories[category].rate(),
+                items=len(category_items.get(category, ())),
+                operators=tuple(
+                    OperatorCount(name, tally.k, tally.n)
+                    for name, tally in sorted(operators.get(category, {}).items())
+                ),
+            )
             for category in Category
             if category in categories
         ),
         by_fault=tuple(FaultRate(mode, modes[mode].rate()) for mode in FaultMode if mode in modes),
-        pattern=pattern_profile(findings),
+        pattern=pattern_profile(main_findings),
+        search_findings=_counts(search_findings),
+        injected=injected,
     )
+
+
+def injected_crash(obs: Observation) -> bool:
+    """Whether misgrade itself ended this call on purpose: a ``worker-death`` fault-check call
+    without a reference (a provoking call, not a compared one) that crashed."""
+    return (
+        obs.phase is Phase.FAULT
+        and obs.fault is FaultMode.WORKER_DEATH
+        and obs.reference is None
+        and obs.verdict.status is CallStatus.CRASH
+    )
+
+
+def _counts(findings: Sequence[Finding]) -> tuple[FindingCount, ...]:
+    """Findings per kind and category (by the shown case), ordered as the pattern profile."""
+    counts: dict[tuple[FindingKind, Category], int] = {}
+    for finding in findings:
+        key = (finding.kind, finding.shown.category)
+        counts[key] = counts.get(key, 0) + 1
+    ordered = sorted(
+        counts.items(),
+        key=lambda pair: (_KIND_ORDER[pair[0][0]], -pair[1], _CATEGORY_ORDER[pair[0][1]]),
+    )
+    return tuple(FindingCount(kind, category, count) for (kind, category), count in ordered)
 
 
 def _compared(obs: Observation) -> bool:
@@ -212,8 +271,9 @@ def pattern_profile(findings: Sequence[Finding]) -> tuple[PatternShare, ...]:
     (they have no category of their own beyond the case's).
 
     Ordered by kind (:class:`~misgrade.models.FindingKind` order), then descending count, then
-    category (:class:`~misgrade.models.Category` order). Every finding counts once, also when
-    two findings minimize to the same case: the profile says how often each pattern was hit.
+    category (:class:`~misgrade.models.Category` order). Every finding given counts once.
+    :func:`summarize` passes the main-phase findings only (one per planned case), so the
+    shares do not depend on the search engine or the budget left for the search.
     """
     counts: dict[FindingKind, dict[Category, int]] = {}
     for finding in findings:

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 
 
@@ -81,8 +84,10 @@ def fakes(monkeypatch):
     monkeypatch.setattr(
         misgrade.gate,
         "evaluate_gate",
-        lambda gate, summary: GateResult(
-            failed="fp" in gate.text, held=("fp=1 (1/2) > 0",) if "fp" in gate.text else ()
+        lambda gate, summary, **kw: GateResult(
+            failed="fp" in gate.text,
+            held=("fp=1 (1/2) > 0",) if "fp" in gate.text else (),
+            reasons=("fp=1 (1/2) > 0",) if "fp" in gate.text else (),
         ),
     )
 
@@ -111,7 +116,7 @@ def test_conforms_fails_with_the_findings(pytester: pytest.Pytester) -> None:
     result.assert_outcomes(passed=1, failed=2)
     result.stdout.fnmatch_lines(
         [
-            "*misgrade: the gate 'fp>0' holds for toy:*",
+            "*misgrade: the gate 'fp>0' fails for toy:*",
             "*fp=1 (1/2) > 0*",
             "*false-positive:number-001::number.plus-one: response '43' (gold '42'); required "
             "reject, observed accept (score 1); 43 != 42*",
@@ -131,7 +136,9 @@ def test_conformance_report(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         misgrade.gate,
         "evaluate_gate",
-        lambda gate, summary: GateResult(failed=gate.text == "findings>0", held=("findings=4",)),
+        lambda gate, summary, **kw: GateResult(
+            failed=gate.text == "findings>0", held=("findings=4",), reasons=("findings=4",)
+        ),
     )
     result = sample_result()
     assert conformance_report(result, fail_on="fp>1") is None
@@ -139,5 +146,43 @@ def test_conformance_report(monkeypatch: pytest.MonkeyPatch) -> None:
     report = conformance_report(result, max_findings=1)
     assert report is not None
     assert "... and 3 more" in report and report.count("\n  ") == 3
-    with pytest.raises(pytest.fail.Exception, match="the gate 'findings>0' holds"):
+    with pytest.raises(pytest.fail.Exception, match="the gate 'findings>0' fails"):
         assert_conforms(result)
+
+
+# --- regressions from the review of the integrated pipeline ------------------------------------
+
+
+@pytest.mark.integration
+def test_a_grader_that_fails_every_call_fails_misgrade_conforms(
+    misgrade_conforms: Any, tmp_path: Path
+) -> None:
+    """Review finding: a reward function that raised on every call passed the gate
+    'fp>0,self_validation_rate<1' (nothing measured, so nothing held)."""
+    from misgrade.models import AuditConfig
+
+    rewards = tmp_path / "raising_rewards_plugin.py"
+    rewards.write_text(
+        "def compute_score(answer, gold):\n    raise RuntimeError('broken')\n", encoding="utf-8"
+    )
+    config = AuditConfig(budget=20, faults=(), search=False, minimize=False)
+    with pytest.raises(pytest.fail.Exception, match="every grader call"):
+        misgrade_conforms(
+            f"{rewards}:compute_score",
+            fail_on="fp>0,self_validation_rate<1",
+            answer_type="number",
+            config=config,
+        )
+
+
+def test_a_gate_typo_fails_before_the_audit(
+    misgrade_conforms: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import misgrade.api
+    from misgrade.errors import GateSyntaxError
+
+    ran: list[object] = []
+    monkeypatch.setattr(misgrade.api, "audit", lambda *a, **k: ran.append(a))
+    with pytest.raises(GateSyntaxError, match="did you mean 'fp'"):
+        misgrade_conforms("m:f", fail_on="fpr>0")
+    assert ran == []

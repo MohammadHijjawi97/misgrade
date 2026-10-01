@@ -1,13 +1,14 @@
 """The grader card: a small, schema-validated JSON summary of one audit, meant to be committed
 next to the grader and compared across versions.
 
-Owner: builder C. The schema (``misgrade/schema/grader-card.schema.json``) is public: a change
+The schema (``misgrade/schema/grader-card.schema.json``) is public: a change
 that removes or renames a field, or makes a valid card invalid, needs a new ``card_version``.
 Adding optional fields does not.
 
 What a card holds (field by field in docs/card.md): the grader, the audit config (with the
 template resolved to its text), the environment, the full :class:`~misgrade.models.Summary`,
-and the findings ordered by kind and category, each with its certificate, what was expected,
+the audit's notes (what it could not do as configured; only when there are some), and the
+findings ordered by kind and category, each with its certificate, what was expected,
 what was observed, and the minimized case with its own certificate. Verdicts in a card leave
 out ``elapsed_s`` so that two audits of the same grader differ only where verdicts differ (the
 timings are in the result JSON).
@@ -99,7 +100,7 @@ def build_card(result: AuditResult) -> dict[str, Any]:
     config["template"] = resolve_template(result.config.template)
     grader = result.grader.to_dict()
     grader["versions"] = dict(sorted(result.grader.versions.items()))
-    return {
+    card: dict[str, Any] = {
         "$schema": CARD_SCHEMA_URL,
         "card_version": CARD_VERSION,
         "misgrade_version": result.misgrade_version,
@@ -112,6 +113,9 @@ def build_card(result: AuditResult) -> dict[str, Any]:
         "findings": [_finding(finding) for finding in listed],
         "findings_omitted": len(findings) - len(listed),
     }
+    if result.notes:
+        card["notes"] = list(result.notes)
+    return card
 
 
 def _finding(finding: Finding) -> dict[str, Any]:

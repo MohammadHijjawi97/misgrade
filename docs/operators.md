@@ -126,10 +126,10 @@ Examples use the plain `{answer}` template; *scope* says whether an operator rew
 | `unicode.fullwidth` | number, mc, bool | answer | construction | Write digits and letters as their fullwidth forms (``４２``); Unicode compatibility normalization (NFKC) maps them back. | `1250` -> `１２５０` | Unicode UAX #15, misgrade design |
 | `unicode.infinity` | interval | answer | construction | Write ``\infty`` as the character ∞ (U+221E). | `(-\infty, 0] \cup [2, \infty)` -> `(-∞, 0] \cup [2, ∞)` | misgrade design |
 | `unicode.minus` | number, latex, interval, set | answer | construction | Write minus signs as U+2212 MINUS SIGN, the character Unicode defines for minus. | `-2.50` -> `−2.50` | misgrade design |
-| `unicode.nbsp` | number, mc, bool, string | response | construction | Write the spaces of the response as no-break spaces (U+00A0). | `São Paulo` -> `São⍽Paulo` | misgrade design |
+| `unicode.nbsp` | number, mc, bool, string | answer | construction | Write the spaces inside the answer (not the template's) as no-break spaces (U+00A0). | `São Paulo` -> `São⍽Paulo` | misgrade design |
 | `unicode.nfd` | string | answer | construction | Decompose accented letters (Unicode NFD: ``é`` as ``e`` + U+0301); canonically equivalent text. | `São Paulo` -> `São Paulo` | Unicode UAX #15, misgrade design |
 | `unicode.pi` | latex | answer | construction | Write ``\pi`` as the character π (U+03C0). | `2\pi` -> `2π` | misgrade design |
-| `unicode.sqrt` | latex | answer | cas | Write ``\sqrt{x}`` with the radical sign √ (U+221A), parenthesized when needed. | `\frac{\sqrt{3}}{2}` -> `\frac{√3}{2}` | misgrade design |
+| `unicode.sqrt` | latex | answer | cas | Write ``\sqrt{x}`` with the radical sign √ (U+221A), parenthesized unless nothing can join the radicand (``√3 + 1``, but ``√(x)y``). | `\frac{\sqrt{3}}{2}` -> `\frac{√3}{2}` | misgrade design |
 
 ### reorder (notation tier)
 
@@ -180,7 +180,7 @@ Examples use the plain `{answer}` template; *scope* says whether an operator rew
 
 | operator | types | scope | certificate | description | example (gold -> case) | motivated by |
 | --- | --- | --- | --- | --- | --- | --- |
-| `near.change-char` | string | answer | structural | Change one letter of the text (the first vowel: ``Paris`` -> ``Peris``). | `São Paulo` -> `Sãi Paulo` | arXiv:2605.02909, misgrade design |
+| `near.change-char` | string | answer | structural | Change one letter of the text (the first consonant to the next one: ``Paris`` -> ``Qaris``; not a vowel, which can make an accepted spelling variant such as ``gray`` for ``grey``). | `São Paulo` -> `Tão Paulo` | arXiv:2605.02909, misgrade design |
 | `near.change-element` | set | answer | structural | Add one to the last element of the set. | `{-2, 1, 3}` -> `{-2, 1, 4}` | arXiv:2605.02909, misgrade design |
 | `near.close-endpoint` | interval | answer | structural | Make the first open finite endpoint closed (``(1, 3)`` -> ``[1, 3)``). | `(1, 3)` -> `[1, 3)` | arXiv:2605.02909, misgrade design |
 | `near.digit-swap` | number | answer | cas | Swap the first two adjacent, different digits (``42`` -> ``24``). | `1250` -> `2150` | arXiv:2605.02909, misgrade design |
@@ -194,7 +194,7 @@ Examples use the plain `{answer}` template; *scope* says whether an operator rew
 | `near.integer-part` | number | answer | cas | Keep only the integer part of a non-integer answer (``2.75`` -> ``2``). | `-2.50` -> `-2` | arXiv:2605.02909, misgrade design |
 | `near.json-bool` | json | answer | structural | Flip the first boolean in the JSON document. | `{"name": "Zoë", "url": "a/b", "ok": true, "year": 1815}` -> `{"name": "Zoë", "url": "a/b", "ok": false, "year": 1815}` | arXiv:2605.02909, misgrade design |
 | `near.json-number` | json | answer | structural | Add one to the first number in the JSON document. | `{"name": "Zoë", "url": "a/b", "ok": true, "year": 1815}` -> `{"name": "Zoë", "url": "a/b", "ok": true, "year": 1816}` | arXiv:2605.02909, misgrade design |
-| `near.json-string` | json | answer | structural | Change one letter of the first string value in the JSON document. | `{"name": "Zoë", "url": "a/b", "ok": true, "year": 1815}` -> `{"name": "Zië", "url": "a/b", "ok": true, "year": 1815}` | arXiv:2605.02909, misgrade design |
+| `near.json-string` | json | answer | structural | Change one letter of the first string value in the JSON document. | `{"name": "Zoë", "url": "a/b", "ok": true, "year": 1815}` -> `{"name": "Boë", "url": "a/b", "ok": true, "year": 1815}` | arXiv:2605.02909, misgrade design |
 | `near.latex-digit` | latex | answer | cas | Increase the first integer in the expression by one (``\frac{1}{3}`` -> ``\frac{2}{3}``). | `\frac{\sqrt{3}}{2}` -> `\frac{\sqrt{4}}{2}` | arXiv:2605.02909, misgrade design |
 | `near.minus-one` | number, latex | answer | cas | Subtract one from the answer. | `1250` -> `1249` | arXiv:2605.02909, misgrade design |
 | `near.negate` | bool | answer | structural | Answer the opposite boolean, in the gold's spelling (``true`` -> ``false``). | `true` -> `false` | arXiv:2605.02909, misgrade design |

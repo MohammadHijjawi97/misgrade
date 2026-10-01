@@ -1,28 +1,37 @@
 """The terminal summary printed by ``misgrade audit`` (rich).
 
-Owner: builder C. Imported only by the CLI (rich is not imported by ``import misgrade``).
+Imported only by the CLI (rich is not imported by ``import misgrade``).
 Wording rule: every rate is printed with ``k/n`` and its 95% interval; a finding is shown with
 its minimized response, what was expected, what was observed, and the certificate's reason.
+
+Everything that comes from a grader, a seed or a certificate is printed as :class:`Text`,
+never as console markup, so backslashes and brackets in responses (``\\[42\\]``) are printed
+exactly; characters a terminal could garble or a reader could mistake are escaped
+(:func:`~misgrade.outputs._common.literal` for responses, :func:`~misgrade.outputs._common.visible`
+for sentences).
 """
 
 from __future__ import annotations
 
 from rich.console import Console
-from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
-from misgrade.models import AuditResult, FindingKind
+from misgrade.models import AuditResult, CategoryRate, FindingKind
 from misgrade.outputs._common import (
+    CATEGORY_INTERVALS,
     HEADLINES,
     KIND_LABELS,
     KIND_PLURALS,
+    call_notes,
     expected_decision,
     literal,
     ordered_findings,
     pct,
+    plural,
     printable,
     verdict_text,
+    visible,
 )
 
 __all__ = ["print_summary"]
@@ -33,6 +42,8 @@ _STYLES = {
     FindingKind.FAULT: "bold red",
     FindingKind.FALSE_NEGATIVE: "bold yellow",
 }
+_MAX_OPERATORS = 3
+"""Operators listed per category row (the ones with the most findings)."""
 
 
 def print_summary(result: AuditResult, console: Console, *, max_findings: int = 10) -> None:
@@ -42,9 +53,10 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
     console.print(
         Text.assemble(
             ("misgrade ", "bold"),
-            (printable(grader.name), "bold cyan"),
-            f"  ({printable(grader.adapter)} adapter, {summary.items} items, {summary.cases} cases, "
-            f"{summary.calls} grader calls, seed {result.config.seed})",
+            (visible(grader.name), "bold cyan"),
+            f"  ({visible(grader.adapter)} adapter, {plural(summary.items, 'item')}, "
+            f"{plural(summary.cases, 'case')}, {plural(summary.calls, 'grader call')}, "
+            f"seed {result.config.seed})",
         )
     )
 
@@ -69,15 +81,10 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
         headline.add_row(Text(item.title, style=style), *values, item.measures)
     console.print(headline)
 
-    notes = []
-    if summary.errors:
-        notes.append(f"{summary.errors} calls ended without a score (error, timeout or crash)")
-    if summary.not_evaluable:
-        notes.append(
-            f"{summary.not_evaluable} variants not evaluable (their item's gold was not accepted)"
-        )
-    if notes:
-        console.print(Text("; ".join(notes) + ".", style="dim"))
+    for line in call_notes(result):
+        console.print(Text(f"{line}.", style="dim"))
+    for note in result.notes:
+        console.print(Text(f"note: {visible(note)}", style="yellow"))
 
     weak = [row for row in summary.by_category if row.rate.k]
     if weak:
@@ -92,37 +99,48 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
         table.add_column("category")
         table.add_column("kind")
         table.add_column("k/n", justify="right")
+        table.add_column("items", justify="right")
         table.add_column("rate", justify="right")
         table.add_column("95% CI", justify="right")
+        table.add_column("by operator (k/n)")
         for row in weak:
             rate = row.rate
             table.add_row(
                 row.category.value,
                 KIND_LABELS[row.kind],
                 f"{rate.k}/{rate.n}",
+                str(row.items),
                 pct(rate.value or 0.0),
                 f"{pct(rate.low)}-{pct(rate.high)}",
+                _operators(row),
             )
         console.print(table)
+        console.print(Text(CATEGORY_INTERVALS, style="dim"))
 
     if summary.pattern:
         parts = [
             f"{KIND_PLURALS[row.kind]}: {row.category.value} {row.count} ({pct(row.share, 0)})"
             for row in summary.pattern
         ]
-        console.print(Text("pattern: " + "; ".join(parts), style="dim"))
+        console.print(Text("pattern (main phase): " + "; ".join(parts), style="dim"))
+    if summary.search_findings:
+        parts = [
+            f"{KIND_PLURALS[row.kind]}: {row.category.value} {row.count}"
+            for row in summary.search_findings
+        ]
+        console.print(Text("found by the search: " + "; ".join(parts), style="dim"))
 
     findings = ordered_findings(result.findings)
     if not findings:
         console.print(
             Text(
-                f"No findings in {summary.calls} grader calls. That is what was observed in the "
-                "cases tried, not a proof that the grader is correct.",
+                f"No findings in {plural(summary.calls, 'grader call')}. That is what was "
+                "observed in the cases tried, not a proof that the grader is correct.",
                 style="green",
             )
         )
         return
-    console.print(Text(f"{len(findings)} findings", style="bold"))
+    console.print(Text(plural(len(findings), "finding"), style="bold"))
     for number, finding in enumerate(findings[: max(0, max_findings)], start=1):
         shown = finding.shown
         verdict = finding.minimized_verdict or finding.observed
@@ -134,23 +152,37 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
                 f"{number:>3}. ",
                 (label, _STYLES[finding.kind]),
                 f"  {shown.category.value}  ",
-                (printable(shown.case_id), "cyan"),
+                (visible(shown.case_id), "cyan"),
             )
         )
         console.print(
-            f"     response {escape(literal(shown.response))}  gold "
-            f"{escape(literal(shown.item.gold))}",
-            highlight=False,
+            Text.assemble(
+                "     response ",
+                literal(shown.response),
+                "  gold ",
+                literal(shown.item.gold),
+            )
         )
-        observed = escape(printable(verdict_text(verdict)))
         console.print(
-            f"     expected {expected_decision(finding)}, observed {observed}",
-            highlight=False,
+            Text(
+                f"     expected {expected_decision(finding)}, observed "
+                f"{visible(printable(verdict_text(verdict)))}"
+            )
         )
-        reason = printable(shown.certificate.reason)
+        reason = visible(printable(shown.certificate.reason))
         console.print(
             Text(f"     certificate ({shown.certificate.method.value}): {reason}", style="dim")
         )
     hidden = len(findings) - max(0, max_findings)
     if hidden > 0:
-        console.print(Text(f"... {hidden} more findings (see --format html or card)", style="dim"))
+        console.print(
+            Text(f"... {plural(hidden, 'more finding')} (see --format html or card)", style="dim")
+        )
+
+
+def _operators(row: CategoryRate) -> str:
+    """The operators with the most findings in a category row, ``name k/n``."""
+    ranked = sorted(row.operators, key=lambda op: (-op.k, op.operator))
+    shown = [f"{op.operator} {op.k}/{op.n}" for op in ranked[:_MAX_OPERATORS] if op.k]
+    rest = len([op for op in row.operators if op.k]) - len(shown)
+    return ", ".join(shown) + (f", +{rest} more" if rest > 0 else "")

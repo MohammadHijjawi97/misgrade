@@ -1,7 +1,7 @@
 """Variants (meaning-preserving rewrites of a gold answer) and mutants (provably wrong answers
 derived from it), each with a certificate.
 
-Owner: builder A. Public API (the contract other parts code against):
+Public API (the contract other parts code against):
 
 - :func:`variant`, :func:`mutant`: decorators that register operators.
 - :data:`OPERATORS`, :func:`list_operators`, :class:`Operator`, :class:`Scope`.

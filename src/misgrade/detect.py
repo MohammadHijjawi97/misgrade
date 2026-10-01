@@ -1,6 +1,6 @@
 """Answer-type detection for ``--type auto`` and for seed items without a ``type``.
 
-Owner: builder A. Detection only chooses which operators to try; it never certifies anything.
+Detection only chooses which operators to try; it never certifies anything.
 When in doubt it must pick the *narrower* type whose operators are safe for the text (``STRING``
 over ``NUMBER`` for ``"007"``, since a leading zero may matter), and say why in ``reason``.
 

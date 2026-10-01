@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -87,10 +89,22 @@ def test_importable_callables_become_import_paths() -> None:
 
 
 def test_callables_from_files_become_file_paths() -> None:
-    exact = load_target(toy("exact")).obj  # imported under a made-up module name
-    spec = resolve_spec(exact)
+    # A module imported from a file under a made-up name (as pytest's importlib mode does).
+    spec_of_file = importlib.util.spec_from_file_location("made_up_toys_name", TOYS)
+    assert spec_of_file is not None and spec_of_file.loader is not None
+    module = importlib.util.module_from_spec(spec_of_file)
+    sys.modules[spec_of_file.name] = module
+    spec_of_file.loader.exec_module(module)
+    spec = resolve_spec(module.exact)
     assert spec.target == f"{TOYS.as_posix()}:exact"
     assert load_grader(spec).grade(request("42")) == 1.0
+
+
+def test_files_are_imported_under_their_own_name() -> None:
+    # So a process pool the grader starts can import its functions by name.
+    loaded = load_target(toy("exact"))
+    assert loaded.module is not None and loaded.module.__name__ == "toys"
+    assert resolve_spec(loaded.obj).target == "toys:exact"
 
 
 def test_framework_conventions_choose_the_adapter() -> None:

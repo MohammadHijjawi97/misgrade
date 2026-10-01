@@ -1,6 +1,6 @@
 """The ``misgrade`` command.
 
-Owner: builder D. Subcommands::
+Subcommands::
 
     misgrade audit GRADER [--adapter NAME] [--type TYPE|auto] [--seeds FILE.jsonl]
                           [--template T] [--budget N] [--seed N] [--format F,...] [--out DIR]
@@ -27,13 +27,13 @@ import json
 import sys
 import traceback
 from collections.abc import Callable, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
-from rich.markup import escape
 from rich.table import Table
+from rich.text import Text
 
 from misgrade import __version__
 from misgrade.errors import ConfigError, GraderLoadError, MisgradeError, UnknownNameError
@@ -57,6 +57,9 @@ from misgrade.models import (
     resolve_template,
 )
 
+if TYPE_CHECKING:
+    from misgrade.gate import Gate
+
 __all__ = ["build_parser", "config_from_args", "main"]
 
 LIST_CHOICES = ("types", "categories", "operators", "adapters", "formats", "faults", "templates")
@@ -67,6 +70,7 @@ DISAGREEMENT_FILE = "misgrade-disagreement.json"
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command line; returns the exit code (the console script exits with it)."""
+    _never_fail_to_encode()
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
@@ -78,27 +82,56 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return handler(args, out, err)
     except GraderLoadError as exc:
-        err.print(f"[bold red]misgrade:[/] the grader could not be loaded: {escape(str(exc))}")
+        _error(err, f"the grader could not be loaded: {exc}")
         return ExitCode.GRADER_ERROR
     except (ConfigError, UnknownNameError) as exc:
-        err.print(f"[bold red]misgrade:[/] {escape(str(exc))}")
+        _error(err, str(exc))
         return ExitCode.USAGE
     except MisgradeError as exc:
-        err.print(f"[bold red]misgrade:[/] {escape(str(exc))}")
-        return ExitCode.INTERNAL
-    except NotImplementedError as exc:
-        err.print(f"[bold red]misgrade:[/] not implemented yet ({escape(str(exc))})")
+        _error(err, str(exc))
         return ExitCode.INTERNAL
     except KeyboardInterrupt:
-        err.print("[bold red]misgrade:[/] interrupted")
+        _error(err, "interrupted")
         return ExitCode.INTERNAL
     except Exception as exc:
-        err.print(escape(traceback.format_exc()), end="")
-        err.print(
-            f"[bold red]misgrade:[/] internal error ({escape(type(exc).__name__)}): this is a "
-            "bug in misgrade; please report it with the output of `misgrade version`"
+        err.print(Text(traceback.format_exc()), end="")
+        _error(
+            err,
+            f"internal error ({type(exc).__name__}): this is a bug in misgrade; please report "
+            "it with the output of `misgrade version`",
         )
         return ExitCode.INTERNAL
+
+
+def _error(err: Console, message: str) -> None:
+    err.print(Text.assemble(("misgrade:", "bold red"), " ", message))
+
+
+def _never_fail_to_encode() -> None:
+    """Text that the output stream's encoding cannot hold (a fullwidth digit, 解 on a cp1252
+    pipe on Windows) is written as a backslash escape instead of ending the command with a
+    UnicodeEncodeError (and losing the output files)."""
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        reconfigure = getattr(stream, "reconfigure", None)
+        if encoding in ("utf8", "utf8sig") or reconfigure is None:
+            continue
+        try:
+            reconfigure(errors="backslashreplace")
+        except (ValueError, OSError):  # pragma: no cover - a stream that cannot be changed
+            continue
+
+
+def _write_utf8(text: str) -> None:
+    """Machine-readable output (JSON) on stdout as UTF-8 bytes, whatever the console's
+    encoding."""
+    sys.stdout.flush()
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is None:  # a text-only stream (tests); it takes str
+        sys.stdout.write(text)
+    else:
+        buffer.write(text.encode("utf-8"))
+        buffer.flush()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -123,10 +156,22 @@ def build_parser() -> argparse.ArgumentParser:
     compare = commands.add_parser(
         "compare", aliases=["matrix"], help="audit several graders and compare them"
     )
-    compare.add_argument("graders", nargs="+", metavar="GRADER")
+    compare.add_argument(
+        "graders",
+        nargs="+",
+        metavar="GRADER",
+        help="two or more graders, each named as for audit (pkg.module:function, "
+        "path/to/file.py:function, grader.json)",
+    )
     compare.add_argument("--adapter", help="adapter for every grader (default: detected)")
     _add_audit_options(compare)
-    compare.add_argument("--out", default=DEFAULT_OUT, type=Path, help="output directory")
+    compare.add_argument(
+        "--out",
+        default=DEFAULT_OUT,
+        type=Path,
+        metavar="DIR",
+        help="output directory (default: %(default)s)",
+    )
     compare.add_argument("--quiet", action="store_true", help="no table on the terminal")
     compare.set_defaults(handler=_cmd_compare)
 
@@ -146,8 +191,16 @@ def build_parser() -> argparse.ArgumentParser:
     transforms.set_defaults(handler=_cmd_list, what="operators")
 
     selftest = commands.add_parser("selftest", help="check misgrade against planted bugs")
-    selftest.add_argument("--budget", type=int, default=400, help="cases per audited grader")
-    selftest.add_argument("--seed", type=int, default=0)
+    selftest.add_argument(
+        "--budget",
+        type=int,
+        default=400,
+        metavar="N",
+        help="cases per audited grader (default: %(default)s)",
+    )
+    selftest.add_argument(
+        "--seed", type=int, default=0, metavar="N", help="seed (default: %(default)s)"
+    )
     selftest.add_argument(
         "--only", action="append", default=[], metavar="NAME", help="one grader; repeatable"
     )
@@ -178,7 +231,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="ID",
         help="only this finding (repeatable); default: every finding not yet minimized",
     )
-    minimize.add_argument("--budget", type=int, help="grader calls per finding")
+    minimize.add_argument(
+        "--budget",
+        type=int,
+        metavar="N",
+        help="grader calls per finding (default: the saved audit's minimize budget)",
+    )
     _add_grader_options(minimize)
     _add_output_options(minimize)
     minimize.set_defaults(handler=_cmd_minimize)
@@ -206,43 +264,96 @@ def _add_grader_options(parser: argparse.ArgumentParser) -> None:
 
 def _add_audit_options(parser: argparse.ArgumentParser) -> None:
     types = ", ".join(t.value for t in AnswerType)
-    parser.add_argument("--type", dest="answer_type", default="auto", help=f"auto, {types}")
-    parser.add_argument("--seeds", type=Path, help="JSONL file of gold items (default: bundled)")
+    parser.add_argument(
+        "--type",
+        dest="answer_type",
+        default="auto",
+        help=f"answer type: auto (every bundled type), {types} (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=Path,
+        metavar="FILE",
+        help="JSONL file of gold items, one per line with at least 'id' and 'gold' "
+        "(default: the bundled items)",
+    )
     parser.add_argument(
         "--template",
         default="plain",
-        help=f"response format: {', '.join(TEMPLATE_PRESETS)}, or a text with {{answer}}",
+        help=f"response format: {', '.join(TEMPLATE_PRESETS)}, or a text with {{answer}} "
+        "(default: %(default)s)",
     )
-    parser.add_argument("--budget", type=int, default=AuditConfig.budget)
-    parser.add_argument("--seed", type=int, default=AuditConfig.seed)
-    parser.add_argument("--timeout", type=float, default=RunConfig.timeout_s, help="seconds/call")
     parser.add_argument(
-        "--isolation", choices=[i.value for i in Isolation], default=Isolation.SUBPROCESS.value
+        "--budget",
+        type=int,
+        default=AuditConfig.budget,
+        metavar="N",
+        help="cases graded in the main and search phases together (default: %(default)s)",
     )
-    parser.add_argument("--threshold", type=float, default=RunConfig.accept_threshold)
-    parser.add_argument("--include", help="only these categories (comma-separated)")
-    parser.add_argument("--exclude", help="leave out these categories (comma-separated)")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=AuditConfig.seed,
+        metavar="N",
+        help="same seed, same cases (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=RunConfig.timeout_s,
+        metavar="SECONDS",
+        help="time limit per grader call (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--isolation",
+        choices=[i.value for i in Isolation],
+        default=Isolation.SUBPROCESS.value,
+        help="subprocess: the grader runs in a worker process that misgrade can stop; none: "
+        "in this process, for lambdas and closures, without the pathological cases and the "
+        "timeout and worker-death checks (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=RunConfig.accept_threshold,
+        metavar="X",
+        help="a score at or above it is an acceptance (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--include", metavar="CATEGORIES", help="only these categories (comma-separated)"
+    )
+    parser.add_argument(
+        "--exclude", metavar="CATEGORIES", help="leave out these categories (comma-separated)"
+    )
     parser.add_argument(
         "--faults",
         default=",".join(m.value for m in FaultMode),
-        help="fault modes to check (comma-separated), or none",
+        help="fault modes to check (comma-separated), or none (default: %(default)s)",
     )
     parser.add_argument(
         "--fault-budget",
         type=int,
         default=AuditConfig.fault_budget,
-        help="grader calls for all fault checks",
+        metavar="N",
+        help="grader calls for all fault checks (default: %(default)s)",
     )
     parser.add_argument(
         "--minimize-budget",
         type=int,
         default=AuditConfig.minimize_budget,
-        help="grader calls per finding while minimizing",
+        metavar="N",
+        help="grader calls per finding while minimizing (default: %(default)s)",
     )
-    parser.add_argument("--no-search", action="store_true", help="single operators only")
-    parser.add_argument("--no-minimize", action="store_true")
     parser.add_argument(
-        "--errors-as-reject", action="store_true", help="count failed calls as rejections"
+        "--no-search", action="store_true", help="single operators only (no compositions)"
+    )
+    parser.add_argument(
+        "--no-minimize", action="store_true", help="report findings as found, not minimized"
+    )
+    parser.add_argument(
+        "--errors-as-reject",
+        action="store_true",
+        help="count failed calls as rejections, as trainers that give 0 on an exception",
     )
 
 
@@ -250,10 +361,27 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--format",
         default=DEFAULT_FORMATS,
-        help="comma-separated formats (see: misgrade list formats), or none to write no file",
+        help="comma-separated formats (see: misgrade list formats), or none to write no file "
+        "(default: %(default)s)",
     )
-    parser.add_argument("--out", default=DEFAULT_OUT, type=Path, help="output directory")
-    parser.add_argument("--fail-on", help="e.g. 'fp_rate>0.01,self_validation_rate<1'")
+    parser.add_argument(
+        "--out",
+        default=DEFAULT_OUT,
+        type=Path,
+        metavar="DIR",
+        help="output directory (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--fail-on",
+        metavar="EXPR",
+        help="exit 1 when a condition holds, e.g. 'fp_rate>0.01,self_validation_rate<1'; a "
+        "condition that could not be measured also fails",
+    )
+    parser.add_argument(
+        "--allow-unmeasured",
+        action="store_true",
+        help="do not fail --fail-on conditions that could not be measured (they are listed)",
+    )
     parser.add_argument("--quiet", action="store_true", help="no summary on the terminal")
 
 
@@ -311,28 +439,51 @@ def _read_result(path: Path) -> AuditResult:
     return AuditResult.from_dict(data)
 
 
-def _finish(args: argparse.Namespace, result: AuditResult, out: Console) -> int:
-    """Print, write the formats and evaluate the gate (shared by audit, report, minimize)."""
-    from misgrade.gate import evaluate_gate, parse_gate
-    from misgrade.outputs import write_outputs
+@dataclass(frozen=True)
+class _Outputs:
+    """What ``--fail-on`` and ``--format`` ask for, checked before anything runs: a typo must
+    not cost a whole audit."""
+
+    gate: Gate | None
+    formats: tuple[str, ...]
+
+
+def _outputs_from_args(args: argparse.Namespace) -> _Outputs:
+    from misgrade.gate import parse_gate
+    from misgrade.outputs import WRITERS
 
     gate = parse_gate(args.fail_on) if args.fail_on else None
+    formats = () if args.format.strip() == "none" else tuple(_split(args.format))
+    for name in formats:
+        WRITERS.get(name)  # UnknownNameError (exit 2) naming the known formats
+    return _Outputs(gate, formats)
+
+
+def _finish(args: argparse.Namespace, result: AuditResult, out: Console, outputs: _Outputs) -> int:
+    """Write the formats, print the summary and evaluate the gate (shared by audit, report,
+    minimize). The files are written first, so nothing printed can lose them."""
+    from misgrade.gate import evaluate_gate
+    from misgrade.outputs import write_outputs
+
+    written = write_outputs(result, outputs.formats, args.out) if outputs.formats else {}
     if not args.quiet:
         from misgrade.outputs.console import print_summary
 
         print_summary(result, out)
-    formats = [] if args.format.strip() == "none" else _split(args.format)
-    if formats:
-        for fmt, path in write_outputs(result, formats, args.out).items():
-            out.print(escape(f"{fmt}: {path}"))
-    if gate is None:
+    for fmt, path in written.items():
+        out.print(Text(f"{fmt}: {path}"))
+    if outputs.gate is None:
         return ExitCode.OK
-    outcome = evaluate_gate(gate, result.summary)
-    for line in outcome.unmeasured:
-        out.print(f"[yellow]fail-on, not measured:[/] {escape(line)}")
-    for line in outcome.held:
-        out.print(f"[bold red]fail-on:[/] {escape(line)}")
-    return ExitCode.GATE_FAILED if outcome.failed else ExitCode.OK
+    outcome = evaluate_gate(
+        outputs.gate, result.summary, allow_unmeasured=getattr(args, "allow_unmeasured", False)
+    )
+    if not outcome.failed:
+        for line in outcome.unmeasured:
+            out.print(Text.assemble(("fail-on, not measured: ", "yellow"), line))
+        return ExitCode.OK
+    for line in outcome.reasons:
+        out.print(Text.assemble(("fail-on: ", "bold red"), line))
+    return ExitCode.GATE_FAILED
 
 
 def _items_from_args(args: argparse.Namespace, config: AuditConfig) -> Any:
@@ -344,6 +495,7 @@ def _items_from_args(args: argparse.Namespace, config: AuditConfig) -> Any:
 def _cmd_audit(args: argparse.Namespace, out: Console, err: Console) -> int:
     from misgrade.api import audit
 
+    outputs = _outputs_from_args(args)
     config = config_from_args(args)
     result = audit(
         args.grader,
@@ -353,7 +505,7 @@ def _cmd_audit(args: argparse.Namespace, out: Console, err: Console) -> int:
         options=_options(args.option),
         name=args.name,
     )
-    return _finish(args, result, out)
+    return _finish(args, result, out, outputs)
 
 
 def _rate(k: int, n: int) -> str:
@@ -394,7 +546,7 @@ def _cmd_compare(args: argparse.Namespace, out: Console, err: Console) -> int:
         for result in results:
             summary = result.summary
             rates.add_row(
-                escape(result.grader.name),
+                Text(result.grader.name),
                 _rate(summary.self_validation.k, summary.self_validation.n),
                 _rate(summary.fn.k, summary.fn.n),
                 _rate(summary.fp.k, summary.fp.n),
@@ -408,15 +560,15 @@ def _cmd_compare(args: argparse.Namespace, out: Console, err: Console) -> int:
         )
         table.add_column("")
         for name in matrix.graders:
-            table.add_column(escape(name))
+            table.add_column(Text(name))
         for i, name in enumerate(matrix.graders):
             cells = [
                 "" if i == j else _rate(matrix.differ[i][j], matrix.compared[i][j])
                 for j in range(len(matrix.graders))
             ]
-            table.add_row(escape(name), *cells)
+            table.add_row(Text(name), *cells)
         out.print(table)
-    out.print(escape(f"disagreement: {path}"))
+    out.print(Text(f"disagreement: {path}"))
     return ExitCode.OK
 
 
@@ -426,7 +578,7 @@ def _cmd_list(args: argparse.Namespace, out: Console, err: Console) -> int:
         table.add_column("type")
         table.add_column("description")
         for answer_type in AnswerType:
-            table.add_row(answer_type.value, escape(_describe_type(answer_type)))
+            table.add_row(answer_type.value, Text(_describe_type(answer_type)))
     elif args.what == "categories":
         for column in ("category", "kind", "tier"):
             table.add_column(column)
@@ -441,7 +593,7 @@ def _cmd_list(args: argparse.Namespace, out: Console, err: Console) -> int:
         table.add_column("preset")
         table.add_column("template")
         for name, template in TEMPLATE_PRESETS.items():
-            table.add_row(name, escape(template))
+            table.add_row(name, Text(template))
     elif args.what == "operators":
         from misgrade.transforms import list_operators
 
@@ -451,7 +603,7 @@ def _cmd_list(args: argparse.Namespace, out: Console, err: Console) -> int:
             table.add_column(column)
         for op in list_operators(kind=only_kind, answer_type=only_type):
             table.add_row(
-                op.name, op.kind.value, op.category.value, op.method.value, escape(op.description)
+                op.name, op.kind.value, op.category.value, op.method.value, Text(op.description)
             )
     elif args.what == "adapters":
         from misgrade.adapters import ADAPTERS
@@ -459,7 +611,7 @@ def _cmd_list(args: argparse.Namespace, out: Console, err: Console) -> int:
         table.add_column("adapter")
         table.add_column("description")
         for adapter in ADAPTERS.values():
-            table.add_row(adapter.name, escape(adapter.description))
+            table.add_row(adapter.name, Text(adapter.description))
     else:  # formats
         from misgrade.outputs import WRITERS
 
@@ -467,7 +619,7 @@ def _cmd_list(args: argparse.Namespace, out: Console, err: Console) -> int:
         table.add_column("file")
         table.add_column("description")
         for writer in WRITERS.values():
-            table.add_row(writer.name, writer.filename, escape(writer.description))
+            table.add_row(writer.name, writer.filename, Text(writer.description))
     out.print(table)
     return ExitCode.OK
 
@@ -488,16 +640,16 @@ def _describe_type(kind: AnswerType) -> str:
     return _TYPE_DESCRIPTIONS[kind]
 
 
-def _selftest_line(row: Any) -> str:
+def _selftest_line(row: Any) -> Text:
     from misgrade.selftest import PLANTED
 
-    status = "[green]ok[/]" if row.ok else "[bold red]FAIL[/]"
+    status = ("ok", "green") if row.ok else ("FAIL", "bold red")
     if row.planted:
         planted = PLANTED.get(row.name)
         what = f"planted {planted.kind.value} in {planted.target.value}"
     else:
         what = "clean"
-    return f"{status}  {escape(row.name)}  ({what}): {escape(row.detail)}"
+    return Text.assemble(status, f"  {row.name}  ({what}): {row.detail}")
 
 
 def _cmd_selftest(args: argparse.Namespace, out: Console, err: Console) -> int:
@@ -542,7 +694,8 @@ def _cmd_selftest(args: argparse.Namespace, out: Console, err: Console) -> int:
 
 
 def _cmd_report(args: argparse.Namespace, out: Console, err: Console) -> int:
-    return _finish(args, _read_result(args.result), out)
+    outputs = _outputs_from_args(args)
+    return _finish(args, _read_result(args.result), out, outputs)
 
 
 def _cmd_card(args: argparse.Namespace, out: Console, err: Console) -> int:
@@ -550,12 +703,11 @@ def _cmd_card(args: argparse.Namespace, out: Console, err: Console) -> int:
 
     text = WRITERS.get("card").render(_read_result(args.result))
     if args.out is None or str(args.out) == "-":
-        sys.stdout.write(text)
-        sys.stdout.flush()
+        _write_utf8(text)
     else:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_bytes(text.encode("utf-8"))
-        out.print(escape(f"card: {args.out}"))
+        out.print(Text(f"card: {args.out}"))
     return ExitCode.OK
 
 
@@ -565,6 +717,7 @@ def _cmd_minimize(args: argparse.Namespace, out: Console, err: Console) -> int:
     from misgrade.stats import summarize
     from misgrade.transforms import apply_chain
 
+    outputs = _outputs_from_args(args)
     result = _read_result(args.result)
     known = {finding.finding_id for finding in result.findings}
     unknown = [finding_id for finding_id in args.finding if finding_id not in known]
@@ -583,11 +736,11 @@ def _cmd_minimize(args: argparse.Namespace, out: Console, err: Console) -> int:
     ]
     if not chosen:
         out.print("nothing to minimize: no false-negative or false-positive finding left")
-        return _finish(args, result, out)
+        return _finish(args, result, out, outputs)
     spec = GraderSpec(
         adapter=args.adapter or result.grader.adapter,
         target=result.grader.target,
-        options=_options(args.option),
+        options={**result.grader.options, **_options(args.option)},
         name=args.name or result.grader.name,
     )
     identity = {
@@ -632,7 +785,7 @@ def _cmd_minimize(args: argparse.Namespace, out: Console, err: Console) -> int:
         f"minimized {len(chosen)} finding(s) with {len(made)} grader calls; "
         f"{shrunk} shown with fewer operators"
     )
-    return _finish(args, updated, out)
+    return _finish(args, updated, out, outputs)
 
 
 def _rebuilder(
@@ -658,11 +811,10 @@ def _versions() -> dict[str, str]:
 def _cmd_version(args: argparse.Namespace, out: Console, err: Console) -> int:
     data = _versions()
     if args.json:
-        sys.stdout.write(json.dumps(data, indent=2) + "\n")
-        sys.stdout.flush()
+        _write_utf8(json.dumps(data, indent=2) + "\n")
         return ExitCode.OK
     for key, value in data.items():
-        out.print(escape(f"{key}: {value}"))
+        out.print(Text(f"{key}: {value}"))
     return ExitCode.OK
 
 

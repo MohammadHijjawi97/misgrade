@@ -1,8 +1,8 @@
 """Delta-debugging minimization of findings: the fewest operators that still show the finding.
 
-Owner: builder C. It needs no other part's internals: the caller passes ``rebuild`` (builder
-A's :func:`~misgrade.transforms.apply_chain` bound to the item and template) and ``oracle``
-(builder B's session, ``lambda case: session.grade(case.to_request())``). Tests use fakes.
+It needs no other part's internals: the caller passes ``rebuild``
+(:func:`~misgrade.transforms.apply_chain` bound to the item and template) and ``oracle`` (the
+runner's session, ``lambda case: session.grade(case.to_request())``). Tests use fakes.
 
 A false negative's chain is minimized over all its operators (the empty chain is the identity
 case, known accepted). A false positive's chain keeps ``ops[0]`` (the mutant operator) and is

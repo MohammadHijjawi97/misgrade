@@ -58,17 +58,6 @@ def test_report_arithmetic() -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.needs(
-    "selftest",
-    "transforms",
-    "adapters",
-    "runner",
-    "runner.faults",
-    "runner.worker",
-    "stats",
-    "minimize",
-    "search",
-)
 def test_selftest_recall_is_complete_and_clean_graders_are_clean() -> None:
     from misgrade.selftest import run_selftest
 
@@ -76,7 +65,6 @@ def test_selftest_recall_is_complete_and_clean_graders_are_clean() -> None:
     assert report.ok, [row for row in report.rows if not row.ok]
 
 
-@pytest.mark.needs("selftest")
 def test_every_category_and_fault_mode_has_a_planted_bug() -> None:
     targets = {PLANTED.get(name).target for name in PLANTED.names()}
     expected = {c for c in Category if c is not Category.IDENTITY} | set(FaultMode)

@@ -1,8 +1,8 @@
 """The operator registry: meaning-preserving rewrites (variants) and wrong-answer generators
 (mutants), registered with the :func:`variant` and :func:`mutant` decorators.
 
-Owner: builder A. The registry API below is the contract other parts use (``misgrade list``,
-the composition search, the planted-bug registry); its behaviour is real code, not a stub.
+The registry API below is what the other parts use (``misgrade list``, the composition
+search, the planted-bug registry).
 
 An operator is a pure, deterministic function ``fn(text, item) -> str | None``:
 

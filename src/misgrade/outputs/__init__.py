@@ -1,6 +1,6 @@
 """Output writers: render an :class:`~misgrade.models.AuditResult` in one format each.
 
-Owner: builder C. The :class:`Writer` protocol, the registry and :func:`write_outputs` are the
+The :class:`Writer` protocol, the registry and :func:`write_outputs` are the
 contract (real code). Format names (``--format``):
 
 ========= ============================ ====================================================
@@ -43,7 +43,7 @@ FORMAT_NAMES: tuple[str, ...] = (
     "patches",
     "markdown",
 )
-"""The formats builder C provides (the contract's vocabulary for ``--format``)."""
+"""The built-in formats (the vocabulary of ``--format``)."""
 
 
 @runtime_checkable

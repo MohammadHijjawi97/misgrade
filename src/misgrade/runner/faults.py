@@ -1,8 +1,6 @@
 """Runtime fault checks: verdicts must not change when the same cases are graded again under
 repetition, another order, concurrency, after a timeout, or after a process died.
 
-Owner: builder B.
-
 Each mode re-grades a deterministic sample of the main-phase observations (``reference``)
 and returns fault-phase observations whose ``reference`` is the clean-run verdict. The audit
 turns them into findings with :func:`misgrade.models.to_finding` (rule:
@@ -13,7 +11,8 @@ a change counts.
 - ``order``: grade the sample in a seeded shuffled order in a fresh worker.
 - ``concurrency``: grade the sample from ``RunConfig.concurrency`` threads inside one worker
   (catches graders that use ``signal.alarm`` or other main-thread-only timeouts).
-- ``timeout``: grade a pathological case (``poison``) until it hits the timeout, then re-grade
+- ``timeout``: grade a poison case (``poison``: the pathological cases, or the audit's
+  type-agnostic stress response) until it hits the timeout, then re-grade
   the sample in the same grader process when possible (a grader whose internal pool broke on
   the timeout keeps failing: the verl#8011 class).
 - ``worker-death``: kill the process the grader runs in, or a child process it started, while

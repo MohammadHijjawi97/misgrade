@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 from typing import Any, Final
@@ -27,6 +28,31 @@ BUILTIN: Final = "verl.utils.reward_score:default_compute_score"
 one by ``data_source``; needs ``pip install misgrade[verl]``)."""
 
 _OPTIONS = ("data_source", "extra_info", "kwargs")
+_VERL_ARGUMENTS: Final = frozenset({"solution_str", "ground_truth"})
+
+
+def _takes_verl_arguments(source: str) -> bool:
+    """Whether the module-level ``compute_score`` defined in ``source`` takes verl's
+    ``solution_str`` and ``ground_truth`` arguments: as named parameters, or through
+    ``**kwargs`` that its body reads by those names (read with :mod:`ast`, nothing is
+    imported). The words elsewhere in the file (a helper's parameter) do not count."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return False
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+            node.name == "compute_score"
+        ):
+            args = node.args
+            names = {arg.arg for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs)}
+            if names >= _VERL_ARGUMENTS:
+                return True
+            body = ast.get_source_segment(source, node) or ""
+            return args.kwarg is not None and all(name in body for name in _VERL_ARGUMENTS)
+    return False
+
+
 _DEFAULT_DATA_SOURCE: Final = "misgrade"
 _VERL_RE: Final = re.compile(r"^verl(?:[.:]|$)")
 
@@ -54,10 +80,10 @@ class VerlAdapter:
         if ref.kind != "file" or ref.attr != "compute_score":
             return False
         try:
-            with Path(ref.location).open(encoding="utf-8") as handle:
-                return "solution_str" in handle.read(200_000)
-        except OSError:
+            source = Path(ref.location).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
             return False
+        return _takes_verl_arguments(source)
 
     def load(self, spec: GraderSpec) -> FunctionGrader:
         target = BUILTIN if spec.target in ("verl", "verl:default") else spec.target

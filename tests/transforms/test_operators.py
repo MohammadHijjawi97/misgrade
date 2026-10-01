@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from misgrade.models import AnswerType, Item
+from misgrade.models import AnswerType, Category, Item
 from misgrade.transforms import apply_chain
 from misgrade.transforms.mutants import alternative
 
@@ -122,7 +122,15 @@ ROWS: list[tuple[str, AnswerType, str, str | None]] = [
     ("unicode.fullwidth", B, "\\text{true}", None),
     ("unicode.pi", L, "x", None),
     ("unicode.sqrt", L, "\\sqrt{x+1}", "√(x+1)"),
-    ("unicode.sqrt", L, "2\\sqrt{3}\\sqrt{5}", "2√3√5"),
+    # √ has no agreed precedence: a bare radicand only before the end, +, -, \cdot or a
+    # closing bracket (review finding: √xy and √2\pi were certified as \sqrt{x}y, \sqrt{2}\pi)
+    ("unicode.sqrt", L, "2\\sqrt{3}\\sqrt{5}", "2√(3)√5"),
+    ("unicode.sqrt", L, "\\sqrt{x}y", "√(x)y"),
+    ("unicode.sqrt", L, "\\sqrt{2}\\pi", "√(2)\\pi"),
+    ("unicode.sqrt", L, "\\sqrt{3}x", "√(3)x"),
+    ("unicode.sqrt", L, "\\sqrt{2} + 1", "√2 + 1"),
+    ("unicode.sqrt", L, "\\frac{\\sqrt{3}}{2}", "\\frac{√3}{2}"),
+    ("unicode.sqrt", L, "\\sqrt{2}\\cdot x", "√2\\cdot x"),
     ("unicode.nfd", T, "Paris", None),
     ("unicode.nbsp", T, "Paris", None),
     ("unicode.nbsp", T, "New York", "New\u00a0York"),
@@ -211,6 +219,11 @@ ROWS: list[tuple[str, AnswerType, str, str | None]] = [
     ("near.change-char", T, "xyz", "yyz"),
     ("near.change-char", T, "123", "223"),
     ("near.change-char", T, "!!!", None),
+    # a consonant, not a vowel: grey -> gray is an accepted spelling (review finding)
+    ("near.change-char", T, "grey", "hrey"),
+    ("near.change-char", T, "tyre", "vyre"),
+    ("near.change-char", T, "Au", "Eu"),
+    ("hedge.or-next", T, "grey", "grey or hrey"),
     ("near.swap-chars", T, "aa", None),
     ("near.swap-chars", T, "ab", "ba"),
     ("near.json-number", J, '{"a": 2.5}', '{"a": 3.5}'),
@@ -226,7 +239,7 @@ ROWS: list[tuple[str, AnswerType, str, str | None]] = [
     ("hedge.mismatched-text", M, "D", "D. 5"),
     # retractions and two finals
     ("retract.negated", N, "42", "The answer is not 42."),
-    ("retract.strikethrough", T, "Paris", "~~Paris~~ Peris"),
+    ("retract.strikethrough", T, "Paris", "~~Paris~~ Qaris"),
     ("multi.boxed-last", N, "42", "42\n\n\\boxed{43}"),
     # truncation and empty
     ("trunc.drop-last-char", N, "1.50", None),
@@ -282,6 +295,115 @@ def _item(answer_type: AnswerType, gold: str) -> Item:
 def test_operator(op: str, answer_type: AnswerType, gold: str, expected: str | None) -> None:
     case = apply_chain(_item(answer_type, gold), [op])
     assert (None if case is None else case.response) == expected
+
+
+# --- regressions from the review of the integrated pipeline ------------------------------------
+
+DUPLICATES = Item(id="d", gold="B", answer_type=M, choices=("3", "4", "4", "6"), prompt="2 + 2?")
+
+
+@pytest.mark.parametrize(
+    ("op", "expected"),
+    [
+        ("near.next-option", "D"),  # C has B's text: the same answer to a text-reading grader
+        ("near.prev-option", "A"),
+        ("hedge.or-next", "B or D"),
+        ("hedge.or-prev", "D or B"),
+        ("near.option-text", "6"),
+        ("hedge.mismatched-text", "B. 6"),
+    ],
+)
+def test_options_with_the_gold_text_are_never_the_other_answer(op: str, expected: str) -> None:
+    case = apply_chain(DUPLICATES, [op])
+    assert case is not None and case.response == expected
+
+
+def test_two_labels_of_one_option_text_are_not_certified_different() -> None:
+    from misgrade.transforms.certify import same
+
+    assert same(DUPLICATES, "B", "C") is None
+    assert same(DUPLICATES, "B", "D") is False
+    assert same(DUPLICATES, "B", "(B)") is True
+
+
+@pytest.mark.parametrize(
+    ("answer_type", "gold", "prompt"),
+    [
+        (L, "\\frac{1}{2}", "Write 0.5 as a fraction in lowest terms."),
+        (N, "0.5", "Write $\\frac{1}{2}$ as a decimal."),
+        (N, "0.5", "Write \\(\\frac{1}{2}\\) as a decimal."),
+        (N, "0.5", "Write \\frac{1}{2} as a decimal."),
+        (N, "1250", "Write 1,250 without the comma."),
+        (N, "1250", "Write 1 250 without the space."),
+        (L, "2\\pi", "Simplify $\\pi + \\pi$."),
+    ],
+)
+def test_a_prompt_that_names_the_gold_value_is_no_echo_mutant(
+    answer_type: AnswerType, gold: str, prompt: str
+) -> None:
+    """Review finding: echoes were certified wrong although the prompt held the gold's value
+    (no check at all for latex)."""
+    item = Item(id="e", gold=gold, answer_type=answer_type, prompt=prompt)
+    assert apply_chain(item, ["echo.prompt"]) is None
+
+
+@pytest.mark.parametrize(
+    ("answer_type", "gold", "prompt"),
+    [
+        (N, "42", "What is 6 times 7?"),
+        (N, "0.5", "Write $\\frac{1}{3}$ as a decimal."),
+        (L, "\\frac{1}{2}", "Write 0.25 as a fraction."),
+    ],
+)
+def test_a_prompt_without_the_gold_value_is_an_echo_mutant(
+    answer_type: AnswerType, gold: str, prompt: str
+) -> None:
+    item = Item(id="e", gold=gold, answer_type=answer_type, prompt=prompt)
+    case = apply_chain(item, ["echo.prompt"])
+    assert case is not None and case.response == prompt
+
+
+@pytest.mark.parametrize("template", ["boxed", "answer-tag", "plain", "gsm8k", "final-answer"])
+def test_no_truncation_holds_the_gold_after_the_template(template: str) -> None:
+    """Review finding: \\boxed{\\frac{1}{3} (the template's brace closing the cut group) was a
+    truncation mutant of \\frac{1}{3}; 36 such cases on the bundled seeds."""
+    from misgrade.models import resolve_template
+    from misgrade.seeds import load_seeds
+    from misgrade.transforms import generate_cases
+
+    tmpl = resolve_template(template)
+    truncations = 0
+    for item in load_seeds():
+        for case in generate_cases(item, template=tmpl):
+            if case.category is Category.TRUNCATION:
+                truncations += 1
+                assert item.gold not in case.response, (case.case_id, case.response)
+    assert truncations > 0
+
+
+def test_a_cut_of_an_unreadable_gold_is_not_certified() -> None:
+    """Review finding: "12 c" from the gold "12 cm" (type number) was certified wrong because
+    it "does not read" -- but neither does the gold, and the value 12 is intact."""
+    item = Item(id="u", gold="12 cm", answer_type=N)
+    assert apply_chain(item, ["trunc.drop-last-char"]) is None
+    assert apply_chain(item, ["trunc.half"]) is None
+
+
+def test_no_break_spaces_stay_inside_the_answer() -> None:
+    """Review finding: unicode.nbsp rewrote the template's own delimiter ('####\\xa042')."""
+    from misgrade.transforms import generate_cases
+
+    number = Item(id="n", gold="42", answer_type=N)
+    assert not [
+        c for c in generate_cases(number, template="#### {answer}") if "unicode.nbsp" in c.ops
+    ]
+    city = Item(id="c", gold="New York", answer_type=T)
+    (case,) = [
+        c
+        for c in generate_cases(city, template="Final answer: {answer}")
+        if "unicode.nbsp" in c.ops
+    ]
+    assert case.response == "Final answer: New York"
 
 
 @pytest.mark.parametrize(

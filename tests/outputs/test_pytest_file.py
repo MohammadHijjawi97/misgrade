@@ -129,6 +129,51 @@ def test_other_adapters_load_through_misgrade(pytester: pytest.Pytester, edge: A
     assert "error" not in counts
 
 
+def test_without_misgrade_the_adapter_file_fails(
+    pytester: pytest.Pytester, edge: AuditResult
+) -> None:
+    # A skip would turn every known regression green in a CI job that lacks misgrade.
+    pytester.makeconftest('import sys\n\nsys.modules["misgrade"] = None\n')
+    pytester.path.joinpath("test_regressions.py").write_text(render_pytest(edge), "utf-8")
+    outcome = pytester.runpytest_subprocess("-p", "no:cacheprovider", "-p", "no:misgrade", "-q")
+    counts = outcome.parseoutcomes()
+    assert "skipped" not in counts
+    assert counts.get("failed", 0) + counts.get("errors", counts.get("error", 0)) == 5
+    outcome.stdout.fnmatch_lines(["*load the verl grader through misgrade*pip install misgrade*"])
+
+
+POOL_REWARDS = """
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
+
+_POOL = []
+
+
+def _equal(answer, gold):
+    return answer.strip() == gold.strip()
+
+
+def compute_score(answer, gold):
+    if not _POOL:
+        _POOL.append(ProcessPoolExecutor(1, mp_context=multiprocessing.get_context("spawn")))
+    return float(_POOL[0].submit(_equal, answer, gold).result(timeout=120))
+"""
+
+
+def test_a_file_grader_with_a_process_pool_of_its_own_functions(
+    pytester: pytest.Pytester,
+) -> None:
+    # The file is imported under its own module name, so the pool's children can import it.
+    result = sample_result()
+    result = replace(
+        result, grader=replace(result.grader, target="graders/pool_rewards_rt.py:compute_score")
+    )
+    graders = pytester.mkdir("graders")
+    graders.joinpath("pool_rewards_rt.py").write_text(POOL_REWARDS, encoding="utf-8")
+    pytester.path.joinpath("test_regressions.py").write_text(render_pytest(result), "utf-8")
+    pytester.runpytest_subprocess("-p", "no:cacheprovider", "-q").assert_outcomes(passed=3)
+
+
 NAMED_EXTRAS = '''
 def compute_score(answer, gold, *, answer_type, prompt=None):
     """Needs the answer type by name, as the callable adapter passes it."""

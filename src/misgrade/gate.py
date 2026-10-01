@@ -1,6 +1,6 @@
 """``--fail-on`` gates for CI: conditions on the summary that make the audit fail (exit 1).
 
-Owner: builder C. Grammar (the contract)::
+Grammar (the contract)::
 
     gate      := condition ("," condition)*
     condition := metric [ "." bound ] op number
@@ -12,10 +12,16 @@ Owner: builder C. Grammar (the contract)::
 The gate fails when **any** condition holds. Rates are fractions (``fp_rate>0.01`` is "more
 than 1%"); counts are numbers of findings (``fp``, ``fn``, ``self_validation``, ``faults``,
 ``findings``) or failed calls (``errors``). ``self_validation_rate`` is the share of identity
-cases accepted, so a useful condition is ``self_validation_rate<1``. A rate that was not
-measured (``n == 0``) holds for no condition, and the result says it was not measured.
+cases accepted, so a useful condition is ``self_validation_rate<1``.
 
-What each metric reads from the :class:`~misgrade.models.Summary`:
+**Nothing measured is no pass.** A condition whose metric was not measured (a rate with
+``n == 0``; a count of findings of a kind no case of which was decided) fails the gate too,
+and is reported as not measured: a grader that fails on every call, or a check that did not
+run, must not pass a gate written for it. ``allow_unmeasured`` (``--allow-unmeasured``) turns
+that off for gates shared between audits that measure different things. Independently of the
+conditions, the gate fails when every grader call ended without a score.
+
+What each metric reads from the :class:`~misgrade.models.Summary` (and when it is measured):
 
 ========================= ==================================================================
 ``fp_rate``               ``summary.fp``: mutants accepted / mutants decided (main phase)
@@ -24,11 +30,13 @@ What each metric reads from the :class:`~misgrade.models.Summary`:
 ``self_validation_rate``  ``summary.self_validation``: identity cases accepted / decided
 ``fault_rate``            ``summary.fault``: changed fault-check verdicts / compared ones
 ``error_rate``            ``summary.errors`` / ``summary.calls`` (every phase)
-``fp``, ``fn``,           findings of that kind, search-phase findings included (the pattern
-``self_validation``       profile), and never fewer than the rate's numerator
-``faults``                ``summary.fault.k``: fault findings
-``errors``                ``summary.errors``: calls that ended without a score
-``findings``              ``fp + fn + self_validation + faults``
+``fp``, ``fn``,           findings of that kind (main phase plus search phase), and never
+``self_validation``       fewer than the rate's numerator; measured when the rate was or the
+                          search found one
+``faults``                ``summary.fault.k``: fault findings; measured when ``fault`` was
+``errors``                ``summary.errors``: calls that ended without a score; measured when
+                          a call was made
+``findings``              ``fp + fn + self_validation + faults``; measured when any of them was
 ========================= ==================================================================
 
 Spaces around tokens are allowed; metric and bound names are case-insensitive. Numbers are
@@ -101,12 +109,19 @@ class Gate:
 
 @dataclass(frozen=True)
 class GateResult:
-    """Whether the gate failed, and one line per condition that held, with the measured value
-    (``fp_rate=0.034 (7/206) > 0.01``); ``unmeasured`` lists conditions on rates with n = 0."""
+    """Whether the gate failed, and why.
+
+    ``held``: one line per condition that held, with the measured value
+    (``fp_rate=0.034 (7/206) > 0.01``); ``unmeasured``: one line per condition whose metric was
+    not measured; ``no_scores``: set when every grader call ended without a score. ``reasons``
+    are the lines that explain a failure (empty when the gate passed).
+    """
 
     failed: bool
     held: tuple[str, ...] = ()
     unmeasured: tuple[str, ...] = ()
+    no_scores: str | None = None
+    reasons: tuple[str, ...] = ()
 
 
 def parse_gate(text: str) -> Gate:
@@ -203,13 +218,17 @@ class _Parser:
 
     def _fail(self, message: str, *, at: int | None = None) -> NoReturn:
         column = (self.pos if at is None else at) + 1
+        end = "" if message.endswith("?") else "."
         raise GateSyntaxError(
-            f"--fail-on {self.text!r}, column {column}: {message}. Metrics: {', '.join(METRICS)}"
+            f"--fail-on {self.text!r}, column {column}: {message}{end} "
+            f"Metrics: {', '.join(METRICS)}"
         )
 
 
-def evaluate_gate(gate: Gate, summary: Summary) -> GateResult:
-    """Evaluate every condition against the summary."""
+def evaluate_gate(gate: Gate, summary: Summary, *, allow_unmeasured: bool = False) -> GateResult:
+    """Evaluate every condition against the summary. A condition whose metric was not measured
+    fails the gate unless ``allow_unmeasured``; the gate always fails when every grader call
+    ended without a score."""
     held: list[str] = []
     unmeasured: list[str] = []
     for condition in gate.conditions:
@@ -229,15 +248,51 @@ def evaluate_gate(gate: Gate, summary: Summary) -> GateResult:
                 shown = _format(value, against=condition.threshold)
                 held.append(f"{label}={shown} ({rate.k}/{rate.n}) {condition.op} {threshold}")
         else:
+            if not _count_measured(condition.metric, summary):
+                unmeasured.append(f"{condition.text}: not measured (0 decided cases)")
+                continue
             count = _count(condition.metric, summary)
             if condition.holds(count):
                 held.append(f"{label}={count} {condition.op} {threshold}")
-    return GateResult(failed=bool(held), held=tuple(held), unmeasured=tuple(unmeasured))
+    graded = summary.calls - summary.injected
+    no_scores = None
+    if graded > 0 and summary.errors >= graded:
+        no_scores = (
+            f"every grader call ({summary.errors} of {graded}) ended without a score, so "
+            "nothing was measured"
+        )
+    reasons = list(held)
+    if not allow_unmeasured:
+        reasons += [f"{line}; an unmeasured condition fails the gate" for line in unmeasured]
+    if no_scores is not None:
+        reasons.append(no_scores)
+    return GateResult(
+        failed=bool(reasons),
+        held=tuple(held),
+        unmeasured=tuple(unmeasured),
+        no_scores=no_scores,
+        reasons=tuple(reasons),
+    )
+
+
+def _count_measured(metric: str, summary: Summary) -> bool:
+    """Whether a count metric rests on at least one decided case (see the module table)."""
+    searched = {row.kind for row in summary.search_findings}
+    measured = {
+        "fp": summary.fp.n > 0 or FindingKind.FALSE_POSITIVE in searched,
+        "fn": summary.fn.n > 0 or FindingKind.FALSE_NEGATIVE in searched,
+        "self_validation": summary.self_validation.n > 0,
+        "faults": summary.fault.n > 0,
+        "errors": summary.calls - summary.injected > 0,
+    }
+    if metric == "findings":
+        return any(measured[name] for name in ("fp", "fn", "self_validation", "faults"))
+    return measured[metric]
 
 
 def _rate(metric: str, summary: Summary) -> Rate:
     if metric == "error_rate":
-        return wilson(summary.errors, summary.calls)
+        return wilson(summary.errors, max(summary.errors, summary.calls - summary.injected))
     rates = {
         "fp_rate": summary.fp,
         "fn_rate": summary.fn,
@@ -259,8 +314,10 @@ def _bound(rate: Rate, bound: Bound) -> float:
 
 def _count(metric: str, summary: Summary) -> int:
     pattern: dict[FindingKind, int] = {}
-    for row in summary.pattern:
-        pattern[row.kind] = pattern.get(row.kind, 0) + row.count
+    rows: list[tuple[FindingKind, int]] = [(row.kind, row.count) for row in summary.pattern]
+    rows += [(row.kind, row.count) for row in summary.search_findings]
+    for kind, count in rows:
+        pattern[kind] = pattern.get(kind, 0) + count
     fp = max(pattern.get(FindingKind.FALSE_POSITIVE, 0), summary.fp.k)
     fn = max(pattern.get(FindingKind.FALSE_NEGATIVE, 0), summary.fn.k)
     self_validation = max(

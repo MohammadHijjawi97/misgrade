@@ -20,8 +20,6 @@ from misgrade.models import (
 )
 from misgrade.search import search_compositions
 
-pytestmark = pytest.mark.needs("transforms")
-
 ITEM = Item(id="number-900", gold="1000", answer_type=AnswerType.NUMBER, prompt="10 cubed?")
 
 

@@ -1,6 +1,6 @@
 """The worker process: loads the grader once and answers grade requests over a pipe.
 
-Owner: builder B. Started with ``multiprocessing.get_context("spawn")`` on every OS, so this
+Started with ``multiprocessing.get_context("spawn")`` on every OS, so this
 module and everything it imports must be importable in a fresh interpreter (no state from the
 parent). The entry point takes only picklable arguments: the :class:`GraderSpec`, the pipe and
 (optionally) a control pipe.

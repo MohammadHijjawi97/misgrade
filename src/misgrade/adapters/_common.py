@@ -15,9 +15,11 @@ import importlib
 import importlib.util
 import inspect
 import json
+import keyword
 import numbers
 import re
 import sys
+import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
@@ -25,7 +27,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final, Literal
 
-from misgrade.errors import ConfigError, GraderLoadError
+from misgrade.errors import ConfigError, GraderLoadError, MisgradeWarning
 
 __all__ = [
     "INLINE_TARGET",
@@ -255,18 +257,63 @@ def _file_module_name(path: Path) -> str:
     return f"misgrade_target_{stem}_{digest}"
 
 
+def _module_file(module: ModuleType) -> Path | None:
+    file = getattr(module, "__file__", None)
+    if not isinstance(file, str):
+        return None
+    try:
+        return Path(file).resolve()
+    except OSError:  # pragma: no cover - a path the OS cannot resolve
+        return None
+
+
+def _real_name_problem(path: Path) -> str | None:
+    """Why ``path`` cannot be imported under its own stem (None when it can): processes the
+    grader starts (a ``ProcessPoolExecutor``) find its functions by module name, so a file is
+    imported as ``python -c "import <stem>"`` from its folder would import it."""
+    stem = path.stem
+    if not stem.isidentifier() or keyword.iskeyword(stem) or stem == "__init__":
+        return f"{stem!r} is not a module name"
+    if stem in sys.stdlib_module_names or stem in sys.builtin_module_names:
+        return f"{stem!r} is the name of a standard-library module"
+    existing = sys.modules.get(stem)
+    if existing is not None and _module_file(existing) != path:
+        return f"another module named {stem!r} is already imported"
+    return None
+
+
 def _import_file(location: str) -> ModuleType:
+    """Import a ``.py`` file the way ``python -c "import <stem>"`` run from its folder would:
+    the folder first on ``sys.path`` and the module under its own name, so functions defined
+    in it can be pickled to processes the grader starts. A made-up module name is used only
+    when the real one is taken (or is not a module name), with a warning: child processes
+    cannot import such a module."""
     path = Path(location).expanduser()
     if not path.is_file():
         raise GraderLoadError(f"no such file: {location!r}")
     path = path.resolve()
+    folder = str(path.parent)
+    # Like ``python file.py``: the file's directory comes first, so it can import its siblings
+    # and processes it starts can import it by name.
+    if folder in sys.path:
+        sys.path.remove(folder)
+    sys.path.insert(0, folder)
+    problem = _real_name_problem(path)
+    if problem is None:
+        module = _import_by_stem(location, path)
+        if module is not None:
+            return module
+        problem = f"importing {path.stem!r} from its folder finds another module"
     name = _file_module_name(path)
     if name in sys.modules:
         return sys.modules[name]
-    # Like ``python file.py``: the file's directory comes first, so it can import its siblings.
-    folder = str(path.parent)
-    if folder not in sys.path:
-        sys.path.insert(0, folder)
+    warnings.warn(
+        f"{location} is imported as {name!r} because {problem}; processes the grader starts "
+        "(a ProcessPoolExecutor, a multiprocessing pool) cannot import functions from it by "
+        "name. Rename the file or pass it as 'module:function' if the grader uses such a pool.",
+        MisgradeWarning,
+        stacklevel=2,
+    )
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:  # pragma: no cover - a .py file always has a loader
         raise GraderLoadError(f"cannot import {location!r} as a Python module")
@@ -280,6 +327,23 @@ def _import_file(location: str) -> ModuleType:
             raise
         raise GraderLoadError(f"importing {location!r} failed: {describe_exception(exc)}") from exc
     return module
+
+
+def _import_by_stem(location: str, path: Path) -> ModuleType | None:
+    """``import <stem>`` with the file's folder first on ``sys.path``; None when that import
+    finds another module (a package directory of the same name)."""
+    stem = path.stem
+    existing = sys.modules.get(stem)
+    if existing is not None:  # this very file, imported before
+        return existing
+    try:
+        module = importlib.import_module(stem)
+    except BaseException as exc:
+        sys.modules.pop(stem, None)
+        if not isinstance(exc, Exception):
+            raise
+        raise GraderLoadError(f"importing {location!r} failed: {describe_exception(exc)}") from exc
+    return module if _module_file(module) == path else None
 
 
 def read_config_file(location: str) -> Any:

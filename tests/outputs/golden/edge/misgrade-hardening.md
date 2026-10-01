@@ -1,6 +1,6 @@
 # Hardening suggestions for my "grader" \<v2\>
 
-misgrade audited `C:\Users\Me\rewards\math rewards.py:compute_score` (verl adapter) with 20 grader calls and made 8 findings in 7 groups. For each group, most frequent first: what the finding means, minimized examples with the certificate that says what was required, and changes that usually remove it.
+misgrade audited `C:\Users\Me\rewards\math rewards.py:compute_score` (verl adapter) with 21 grader calls and made 8 findings in 7 groups. For each group, most frequent first: what the finding means, minimized examples with the certificate that says what was required, and changes that usually remove it.
 
 These are suggestions, not verified fixes. After changing the grader, run the audit again with the same seed (and keep the minimized cases as regression tests with `--format pytest`).
 

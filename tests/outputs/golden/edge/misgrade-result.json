@@ -532,6 +532,32 @@
     },
     {
       "case": {
+        "kind": "variant",
+        "id": "mc-003::identity",
+        "item_id": "mc-003",
+        "response": "\\boxed{B}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "crash",
+        "score": null,
+        "accepted": null,
+        "error": "the worker-death check ended the call on purpose",
+        "elapsed_s": 0.0
+      },
+      "phase": "fault",
+      "fault": "worker-death",
+      "reference": null
+    },
+    {
+      "case": {
         "kind": "mutant",
         "id": "number-007::patho.tower",
         "item_id": "number-007",
@@ -1000,8 +1026,9 @@
   "summary": {
     "items": 3,
     "cases": 10,
-    "calls": 20,
+    "calls": 21,
     "errors": 6,
+    "injected": 1,
     "not_evaluable": 1,
     "self_validation": {
       "k": 2,
@@ -1039,7 +1066,9 @@
         "n": 0,
         "value": null,
         "low": 0.0,
-        "high": 1.0
+        "high": 1.0,
+        "items": 0,
+        "operators": []
       },
       {
         "category": "thousands-separator",
@@ -1048,7 +1077,15 @@
         "n": 1,
         "value": 0.0,
         "low": 0.0,
-        "high": 0.7934506856227626
+        "high": 0.7934506856227626,
+        "items": 1,
+        "operators": [
+          {
+            "operator": "sep.comma",
+            "k": 0,
+            "n": 1
+          }
+        ]
       },
       {
         "category": "unicode-form",
@@ -1057,7 +1094,15 @@
         "n": 1,
         "value": 1.0,
         "low": 0.20654931437723745,
-        "high": 1.0
+        "high": 1.0,
+        "items": 1,
+        "operators": [
+          {
+            "operator": "unicode.minus",
+            "k": 1,
+            "n": 1
+          }
+        ]
       },
       {
         "category": "mc-form",
@@ -1066,7 +1111,9 @@
         "n": 0,
         "value": null,
         "low": 0.0,
-        "high": 1.0
+        "high": 1.0,
+        "items": 0,
+        "operators": []
       },
       {
         "category": "near-miss",
@@ -1075,7 +1122,15 @@
         "n": 1,
         "value": 1.0,
         "low": 0.20654931437723745,
-        "high": 1.0
+        "high": 1.0,
+        "items": 1,
+        "operators": [
+          {
+            "operator": "near.plus-one",
+            "k": 1,
+            "n": 1
+          }
+        ]
       },
       {
         "category": "hedge",
@@ -1084,7 +1139,15 @@
         "n": 1,
         "value": 1.0,
         "low": 0.20654931437723745,
-        "high": 1.0
+        "high": 1.0,
+        "items": 1,
+        "operators": [
+          {
+            "operator": "mc.hedge-prev",
+            "k": 1,
+            "n": 1
+          }
+        ]
       },
       {
         "category": "pathological",
@@ -1093,7 +1156,9 @@
         "n": 0,
         "value": null,
         "low": 0.0,
-        "high": 1.0
+        "high": 1.0,
+        "items": 0,
+        "operators": []
       }
     ],
     "by_fault": [
@@ -1126,7 +1191,7 @@
       {
         "kind": "false-negative",
         "category": "unicode-form",
-        "count": 2,
+        "count": 1,
         "share": 1.0
       },
       {
@@ -1147,6 +1212,17 @@
         "count": 1,
         "share": 1.0
       }
+    ],
+    "search_findings": [
+      {
+        "kind": "false-negative",
+        "category": "unicode-form",
+        "count": 1
+      }
     ]
-  }
+  },
+  "notes": [
+    "fault check not run: concurrency (the fault budget of 3 calls was too small)",
+    "misgrade cannot read 1 gold answer as the item's type: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- nul\u0000 c1\u0085 del\u007f lone\ud83d surrogate"
+  ]
 }

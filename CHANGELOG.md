@@ -21,7 +21,6 @@ All notable changes to misgrade are listed here. The format follows
   response template already puts the answer in math mode (`\boxed{{answer}}`, `${answer}$`),
   where TeX does not allow them.
 
-<!-- A: transforms, mutants, type detection (add bullets directly below this line) -->
 - 94 variant operators in 13 categories (whitespace, punctuation, letter case, LaTeX wrappers
   and spellings, answer phrases, numeric forms, thousands separators, Unicode forms, reordering,
   MC forms, boolean forms, JSON formatting) and 72 mutant operators in 12 categories (near
@@ -36,7 +35,6 @@ All notable changes to misgrade are listed here. The format follows
 - Hypothesis property tests of every operator's certificate against an independent oracle, and of
   random compositions.
 
-<!-- B: runner, fault checks, adapters (add bullets directly below this line) -->
 - Adapters for plain callables, verl `compute_score`, TRL GRPO reward functions, verifiers
   reward functions, rubrics and environments, Inspect scorers, lm-eval filter pipelines and
   metrics, OpenAI grader JSON (`string_check`, `python`, `multi`) and promptfoo's deterministic
@@ -52,7 +50,6 @@ All notable changes to misgrade are listed here. The format follows
   grader's own process mid-call), each on a seeded sample that holds accepted and rejected
   clean-run verdicts.
 
-<!-- C: statistics, minimization, search, outputs (add bullets directly below this line) -->
 - Statistics: per-category false-negative and false-positive rates with 95% Wilson
   intervals, fault-check rates, the error-pattern profile and a pairwise disagreement matrix
   for several graders (`misgrade.stats`; counting rules in `docs/card.md`).
@@ -60,15 +57,14 @@ All notable changes to misgrade are listed here. The format follows
   operators that still show it (a false positive keeps its mutant operator), and a search over
   compositions of 2-3 operators that prefers chains near a verdict change (Hypothesis when
   installed, a seeded random search otherwise).
-- `--fail-on` gates: `fp_rate>0.01`, `fn_rate.high>=0.2`, `faults>0`, ...; conditions on
-  unmeasured rates never hold and are reported as unmeasured.
+- `--fail-on` gates: `fp_rate>0.01`, `fn_rate.high>=0.2`, `faults>0`, ...; a condition that
+  could not be measured fails the gate (`--allow-unmeasured` lists it instead).
 - Outputs: the grader card (schema-validated JSON), a self-contained HTML report (light and
   dark, no network), JUnit XML, SARIF 2.1.0 located at the grader's source, an SVG badge, a
   ready-to-commit pytest regression file of the minimized findings, hardening suggestions per
   finding category, a Markdown summary and the rich terminal summary. Every writer is
   byte-deterministic and golden-file tested.
 
-<!-- D: CLI, pytest plugin, MCP server, Action, pre-commit, self-test, seeds (add bullets directly below this line) -->
 - Seed sets: 12 to 14 hand-written items per answer type (MIT), whose prompts never read as
   their own answer.
 - Self-test (`misgrade selftest`): 31 planted graders, at least one per category and fault mode,
@@ -87,3 +83,42 @@ All notable changes to misgrade are listed here. The format follows
   no files by default.
 - The `timeout` fault check gets pathological poison cases even when the category is excluded
   from the main phase.
+
+### Fixed
+
+Found by a review of the integrated pipeline; each has a regression test.
+
+- A grader file is imported under its own module name (its folder first on `sys.path`), so a
+  grader whose process pool runs functions from its own file works; before, every call failed
+  in the pool and was reported as a self-validation failure, and the worker-death check could
+  not show the broken pool. The generated regression file imports the file the same way.
+- `misgrade.audit(lambda ...)` no longer hangs: in-process audits leave out the pathological
+  cases and the `timeout` and `worker-death` checks, say so in the result's notes and warn.
+- The `--fail-on` gate no longer passes a grader that fails on every call: an unmeasured
+  condition fails the gate, and so does an audit in which no call returned a score.
+- `--fail-on` and `--format` typos are reported before the audit runs (CLI, MCP, pytest
+  plugin), and the output files are written before the summary is printed.
+- On Windows, piping the CLI's output (cp1252) no longer ends it with a `UnicodeEncodeError`;
+  the card and `version --json` are written as UTF-8. The terminal summary prints responses
+  exactly (a backslash before `]` was lost) and escapes look-alike characters in reasons.
+- The call the `worker-death` check ends on purpose is no longer counted as a grader error
+  (`errors>0` failed every clean grader); it is reported apart as `injected`.
+- The error-pattern profile comes from the main phase only, so it no longer shifts with the
+  search engine or budget; search findings are counted apart. Category rows give the items
+  behind `n` and k/n per operator, and their intervals are labelled as conditional on them.
+- Certificates: prompt echoes that name the gold's value, truncations that the response
+  template closes again (`\boxed{\frac{1}{3}`), truncations of golds misgrade cannot read,
+  `√xy` for `\sqrt{x}y`, MC near misses onto an option with the gold option's text, and
+  `gray` as a near miss of `grey` are no longer certified; `unicode.nbsp` no longer rewrites
+  the template's own spaces; number certificates name misgrade's exact number reader, not sympy.
+- The `timeout` fault check runs for every answer type (a stress response is the poison when no
+  pathological operator applies); a requested check that compared nothing is named in the
+  notes.
+- `misgrade minimize` loads the grader with the adapter options recorded in the result.
+- verl detection reads `compute_score`'s parameters instead of searching the file for
+  `solution_str`.
+- The regression file of a verl, TRL, ... grader fails instead of skipping when misgrade is not
+  installed.
+- The README and docs examples that start an audit are under `if __name__ == "__main__":`; the
+  sdist ships every file its tests read; CLI options show their defaults; a seed line without
+  `id` or `gold` says the field is missing.

@@ -99,7 +99,21 @@ path = "src/misgrade/__init__.py"
 packages = ["src/misgrade"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "docs", "README.md", "LICENSE", "CHANGELOG.md"]
+# Everything the test suite reads, so the tests pass when run from the sdist.
+include = [
+    "src",
+    "tests",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "action.yml",
+    ".pre-commit-hooks.yaml",
+    ".github/workflows/ci.yml",
+]
 # Local, unpublished notes (also git-ignored).
 exclude = ["docs/preliminary-findings.md"]
 
@@ -108,7 +122,6 @@ testpaths = ["tests"]
 pythonpath = ["tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 markers = [
-    "needs(*modules): skip while one of these misgrade modules is still a skeleton stub (it sets __stub__ = True)",
     "integration: runs the whole pipeline (transforms, runner, stats, outputs) against real graders",
     "slow: takes more than a few seconds",
     "network: downloads something (optional dataset loaders)",

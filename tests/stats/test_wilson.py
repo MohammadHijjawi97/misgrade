@@ -7,8 +7,6 @@ import pytest
 
 from _support import sample_result, wilson
 
-pytestmark = pytest.mark.needs("stats")
-
 
 @pytest.mark.parametrize(("k", "n"), [(0, 0), (0, 10), (1, 10), (5, 10), (10, 10), (7, 206)])
 def test_wilson_matches_the_reference(k: int, n: int) -> None:

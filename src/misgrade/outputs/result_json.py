@@ -1,6 +1,6 @@
 """The ``result`` format: the full :class:`~misgrade.models.AuditResult` as JSON.
 
-Owner: builder C. ``misgrade report`` reads it back with
+``misgrade report`` reads it back with
 :meth:`~misgrade.models.AuditResult.from_dict` to render other formats later.
 """
 

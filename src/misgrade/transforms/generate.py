@@ -1,6 +1,6 @@
 """Building certified cases from an item: single operators and chains of them.
 
-Owner: builder A. Signatures are the contract (tests/contract/test_interfaces.py checks them).
+Signatures are the contract (tests/contract/test_interfaces.py checks them).
 
 Chain rule (what :func:`apply_chain` accepts):
 
@@ -31,6 +31,9 @@ Two further rules keep compositions honest:
   ``$$...$$``, ``\\(...\\)`` or ``\\[...\\]``), the answer-scope wrappers that open math mode
   (:data:`MATH_DELIMITER_OPS`) do not apply: TeX does not allow math delimiters inside math,
   so ``\\boxed{\\[0.5\\]}`` cannot be certified equivalent by construction.
+- A truncation is certified on the bare answer, so the finished response is checked too: when
+  the gold occurs in it (the template's closing brace closed what the cut left open, as in
+  ``\\boxed{\\frac{1}{3}`` for the gold ``\\frac{1}{3}``), the chain builds nothing.
 
 Items whose gold is empty or whitespace get only their identity case.
 """
@@ -240,6 +243,12 @@ def _build(
     if not rendered:
         text = render_template(template, text)
     first = operators[0]
+    if first.category is Category.TRUNCATION and item.gold in text:
+        # The cut was certified on the bare answer; around it, the template (or a wrapper
+        # applied after the cut) can close what the cut left open: the gold \frac{1}{3} cut to
+        # \frac{1}{3 and rendered with \boxed{{answer}} is \boxed{\frac{1}{3}, which holds the
+        # whole gold again (the template's brace closes the cut group).
+        return None
     certificate = merge_steps(first.kind, steps)
     case_type = Mutant if first.kind is CaseKind.MUTANT else Variant
     return case_type(

@@ -32,11 +32,13 @@ from misgrade.models import (
 from misgrade.stats import identity_verdicts
 
 __all__ = [
+    "CATEGORY_INTERVALS",
     "HEADLINES",
     "KIND_LABELS",
     "KIND_PLURALS",
     "Headline",
     "ObservationStatus",
+    "call_notes",
     "classify_observations",
     "expected_decision",
     "finding_details",
@@ -47,9 +49,11 @@ __all__ = [
     "md_text",
     "ordered_findings",
     "pct",
+    "plural",
     "printable",
     "rate_text",
     "verdict_text",
+    "visible",
     "xml_escape",
 ]
 
@@ -223,6 +227,67 @@ def xml_escape(text: str, *, attribute: bool = False) -> str:
 def pct(value: float, digits: int = 1) -> str:
     """``0.5`` -> ``50.0%`` (fixed digits, so outputs are byte-stable)."""
     return f"{value * 100:.{digits}f}%"
+
+
+def plural(number: int, singular: str, many: str | None = None) -> str:
+    """``1 call``, ``2 calls`` (``many`` for irregular plurals)."""
+    word = singular if number == 1 else (many or f"{singular}s")
+    return f"{number} {word}"
+
+
+def visible(text: str) -> str:
+    """``text`` with the characters a reader could mistake for others (non-ASCII characters
+    that are not plain letters: U+2212 MINUS SIGN, no-break spaces, fullwidth digits) and
+    control characters written as ``\\uXXXX``; backslashes, quotes and line breaks are left as
+    they are. For sentences such as certificate reasons on a terminal, whose encoding may not
+    hold every character."""
+    out = []
+    for char in text:
+        code = ord(char)
+        if 0x20 <= code < 0x7F or char in "\n\t" or _plain_letter(char):
+            out.append(char)
+        elif code <= 0xFFFF:
+            out.append(f"\\u{code:04x}")
+        else:
+            out.append(f"\\U{code:08x}")
+    return "".join(out)
+
+
+CATEGORY_INTERVALS: Final = (
+    "A category's cases are its operators applied to every item, not independent draws: its "
+    "95% interval is conditional on these items and operators (per-operator counts are in the "
+    "card)."
+)
+"""How to read the per-category intervals (said wherever they are shown)."""
+
+
+def call_notes(result: AuditResult) -> list[str]:
+    """Sentences about calls without a score, calls misgrade ended on purpose and variants
+    that could not be evaluated (empty when there are none)."""
+    summary = result.summary
+    notes = []
+    if summary.errors:
+        rejected = (
+            ", counted as rejections (errors_as_reject)"
+            if result.config.errors_as_reject
+            else ", left out of every rate"
+        )
+        graded = summary.calls - summary.injected
+        notes.append(
+            f"{summary.errors} of {plural(graded, 'grader call')} ended without a score "
+            f"(error, timeout or crash){rejected}"
+        )
+    if summary.injected:
+        notes.append(
+            f"{plural(summary.injected, 'call')} ended on purpose by the worker-death check "
+            "(not counted as an error)"
+        )
+    if summary.not_evaluable:
+        notes.append(
+            f"{plural(summary.not_evaluable, 'variant')} not evaluable (the gold answer of "
+            "the item was not accepted)"
+        )
+    return notes
 
 
 def rate_text(rate: Rate) -> str:

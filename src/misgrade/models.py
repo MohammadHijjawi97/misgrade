@@ -506,7 +506,12 @@ class Item:
                 source=source,
             )
         for key in ("id", "gold"):
-            if not isinstance(data.get(key), str):
+            if key not in data:
+                raise SeedFormatError(
+                    f"missing required field {key!r} (an item needs 'id' and 'gold')",
+                    source=source,
+                )
+            if not isinstance(data[key], str):
                 raise SeedFormatError(f"{key!r} must be a string", source=source)
         raw_type = data.get("type")
         try:
@@ -1274,12 +1279,40 @@ class Rate:
 
 
 @dataclass(frozen=True)
+class OperatorCount:
+    """``k`` of ``n`` for the main-phase cases of one operator inside a category."""
+
+    operator: str
+    k: int
+    n: int
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.k <= self.n:
+            raise ValueError(f"an operator count needs 0 <= k <= n (got k={self.k}, n={self.n})")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"operator": self.operator, "k": self.k, "n": self.n}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> OperatorCount:
+        return cls(operator=str(data["operator"]), k=int(data["k"]), n=int(data["n"]))
+
+
+@dataclass(frozen=True)
 class CategoryRate:
     """The false-negative rate of a variant category, or the false-positive rate of a mutant
-    category."""
+    category.
+
+    The cases behind ``rate`` are every applicable operator of the category on every item, not
+    independent draws: ``items`` is the number of distinct items behind ``n`` and
+    ``operators`` gives ``k`` of ``n`` per operator, so a rate driven by one operator (or one
+    item) shows as such. The Wilson interval is conditional on these items and operators.
+    """
 
     category: Category
     rate: Rate
+    items: int = 0
+    operators: tuple[OperatorCount, ...] = ()
 
     @property
     def kind(self) -> FindingKind:
@@ -1288,11 +1321,22 @@ class CategoryRate:
         return FindingKind.FALSE_POSITIVE
 
     def to_dict(self) -> dict[str, Any]:
-        return {"category": self.category.value, "kind": self.kind.value, **self.rate.to_dict()}
+        return {
+            "category": self.category.value,
+            "kind": self.kind.value,
+            **self.rate.to_dict(),
+            "items": self.items,
+            "operators": [row.to_dict() for row in self.operators],
+        }
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> CategoryRate:
-        return cls(category=Category.parse(data["category"]), rate=Rate.from_dict(data))
+        return cls(
+            category=Category.parse(data["category"]),
+            rate=Rate.from_dict(data),
+            items=int(data.get("items", 0)),
+            operators=tuple(OperatorCount.from_dict(row) for row in data.get("operators", [])),
+        )
 
 
 @dataclass(frozen=True)
@@ -1342,6 +1386,28 @@ class PatternShare:
 
 
 @dataclass(frozen=True)
+class FindingCount:
+    """How many findings of a kind the search phase made in one category. No share: search
+    cases are chosen adaptively (towards verdict changes), so their mix says what the search
+    pursued, not what the grader does."""
+
+    kind: FindingKind
+    category: Category
+    count: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind.value, "category": self.category.value, "count": self.count}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> FindingCount:
+        return cls(
+            kind=FindingKind.parse(data["kind"]),
+            category=Category.parse(data["category"]),
+            count=int(data["count"]),
+        )
+
+
+@dataclass(frozen=True)
 class Summary:
     """The numbers of an audit. Built by :func:`misgrade.stats.summarize`.
 
@@ -1357,9 +1423,13 @@ class Summary:
     - ``by_category``: one row per non-identity category with at least one main-phase case,
       in :class:`Category` order; ``by_fault``: one row per fault mode with at least one
       compared observation, in :class:`FaultMode` order.
+    - ``pattern``: the error-pattern profile of the main-phase findings;
+      ``search_findings``: the search phase's findings per kind and category (counts only).
+    - ``injected``: calls misgrade itself ended on purpose (the ``worker-death`` check); they
+      are not in ``errors``.
 
-    The rates use main-phase observations only (one operator per case, a denominator fixed
-    before grading); see :mod:`misgrade.stats` for the full counting rules.
+    The rates and the pattern use main-phase observations only (one operator per case, a
+    denominator fixed before grading); see :mod:`misgrade.stats` for the full counting rules.
     """
 
     items: int
@@ -1374,6 +1444,8 @@ class Summary:
     by_category: tuple[CategoryRate, ...] = ()
     by_fault: tuple[FaultRate, ...] = ()
     pattern: tuple[PatternShare, ...] = ()
+    search_findings: tuple[FindingCount, ...] = ()
+    injected: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1381,6 +1453,7 @@ class Summary:
             "cases": self.cases,
             "calls": self.calls,
             "errors": self.errors,
+            "injected": self.injected,
             "not_evaluable": self.not_evaluable,
             "self_validation": self.self_validation.to_dict(),
             "fn": self.fn.to_dict(),
@@ -1389,6 +1462,7 @@ class Summary:
             "by_category": [row.to_dict() for row in self.by_category],
             "by_fault": [row.to_dict() for row in self.by_fault],
             "pattern": [row.to_dict() for row in self.pattern],
+            "search_findings": [row.to_dict() for row in self.search_findings],
         }
 
     @classmethod
@@ -1406,6 +1480,10 @@ class Summary:
             by_category=tuple(CategoryRate.from_dict(row) for row in data.get("by_category", [])),
             by_fault=tuple(FaultRate.from_dict(row) for row in data.get("by_fault", [])),
             pattern=tuple(PatternShare.from_dict(row) for row in data.get("pattern", [])),
+            search_findings=tuple(
+                FindingCount.from_dict(row) for row in data.get("search_findings", [])
+            ),
+            injected=int(data.get("injected", 0)),
         )
 
 
@@ -1465,7 +1543,10 @@ class AuditResult:
     """Everything one audit produced. Writers render it; ``misgrade report`` re-reads it.
 
     ``started_at`` is an ISO 8601 UTC timestamp; ``environment`` records what can change
-    verdicts besides the grader (Python version, platform, sympy version).
+    verdicts besides the grader (Python version, platform, sympy version). ``notes`` say what
+    the audit could not do as configured and what it did instead (a check that was skipped, a
+    category left out, seed golds misgrade cannot read); ``to_dict`` writes them only when
+    there are some.
     """
 
     grader: GraderInfo
@@ -1478,6 +1559,7 @@ class AuditResult:
     started_at: str
     duration_s: float
     environment: Mapping[str, str] = field(default_factory=dict, hash=False)
+    notes: tuple[str, ...] = ()
 
     def findings_of(self, *kinds: FindingKind) -> tuple[Finding, ...]:
         """The findings of these kinds (all findings when none is given)."""
@@ -1487,7 +1569,7 @@ class AuditResult:
 
     def to_dict(self) -> dict[str, Any]:
         """The full result as JSON-ready data (``--format result``)."""
-        return {
+        data: dict[str, Any] = {
             "format": RESULT_FORMAT,
             "format_version": RESULT_FORMAT_VERSION,
             "misgrade_version": self.misgrade_version,
@@ -1501,6 +1583,9 @@ class AuditResult:
             "findings": [finding.to_dict() for finding in self.findings],
             "summary": self.summary.to_dict(),
         }
+        if self.notes:
+            data["notes"] = list(self.notes)
+        return data
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> AuditResult:
@@ -1515,6 +1600,7 @@ class AuditResult:
         items = tuple(Item.from_dict(raw) for raw in _get(data, "items", list, "result"))
         by_id = {item.id: item for item in items}
         environment = _get(data, "environment", dict, "result", default={})
+        notes = _get(data, "notes", list, "result", default=[])
         return cls(
             grader=GraderInfo.from_dict(_get(data, "grader", dict, "result")),
             config=AuditConfig.from_dict(_get(data, "config", dict, "result")),
@@ -1531,6 +1617,7 @@ class AuditResult:
             started_at=_get(data, "started_at", str, "result"),
             duration_s=float(_get(data, "duration_s", (int, float), "result")),
             environment={str(key): str(value) for key, value in environment.items()},
+            notes=tuple(str(note) for note in notes),
         )
 
 

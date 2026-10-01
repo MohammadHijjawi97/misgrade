@@ -74,6 +74,7 @@ def test_audit_grader(fakes: list[dict[str, Any]], tmp_path: Path) -> None:
     assert payload["gate"] == {
         "expression": "fp>0",
         "failed": True,
+        "reasons": [],
         "held": ["fp=1 (1/2) > 0"],
         "unmeasured": [],
     }

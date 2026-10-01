@@ -400,11 +400,12 @@ class SubprocessSession(Session):
         if isinstance(worker, Verdict):
             return worker
         worker.process.join(SOFT_GRACE_S + 5.0)
-        reason = worker.exit_reason()
+        on_purpose = worker.process.exitcode == EXIT_DIED_ON_PURPOSE
+        detail = ", on purpose" if on_purpose else f" ({worker.exit_reason()})"
         self._drop()
         return Verdict.failure(
             CallStatus.CRASH,
-            f"the worker-death check ended the grader's process during the call ({reason})",
+            f"the worker-death check ended the grader's process during the call{detail}",
             elapsed_s=time.perf_counter() - started,
         )
 

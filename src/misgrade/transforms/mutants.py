@@ -1,7 +1,7 @@
 """Built-in mutant operators (provably wrong answers derived from the gold), registered on
 import.
 
-Owner: builder A. One function per operator, decorated with
+One function per operator, decorated with
 :func:`misgrade.transforms.registry.mutant`. Every operator has a test that its outputs are
 certified different from the gold (tests/transforms/).
 
@@ -425,9 +425,19 @@ def _bare_label(text: str, item: Item) -> str | None:
 
 
 def _neighbour(item: Item, label: str, step: int) -> str | None:
+    """The nearest option in the direction ``step`` whose text differs from ``label``'s (an
+    option with the same text as the gold's is the same answer to a grader that compares
+    texts, so it is skipped)."""
     labels = mc_labels(item.choices)
+    own = option_text(item.choices, label)
     index = labels.index(label) + step
-    return labels[index] if 0 <= index < len(labels) else None
+    while 0 <= index < len(labels):
+        other = labels[index]
+        text = option_text(item.choices, other)
+        if own is None or text is None or loose(text) != loose(own):
+            return other
+        index += step
+    return None
 
 
 @mutant("near.next-option", category=NEAR, types=[M], method=STRUCTURAL)
@@ -475,18 +485,29 @@ def negate(text: str, item: Item) -> str | None:
 
 
 _VOWELS = {"a": "e", "e": "a", "i": "o", "o": "i", "u": "a"}
+_CONSONANTS = "bcdfghjklmnpqrstvwxyz"
+
+
+def _next_consonant(char: str) -> str:
+    low = char.lower()
+    new = _CONSONANTS[(_CONSONANTS.index(low) + 1) % len(_CONSONANTS)]
+    return new.upper() if char.isupper() else new
 
 
 def _change_char(text: str) -> str | None:
+    """The text with one character changed: the first ASCII consonant becomes the next
+    consonant (``Paris`` -> ``Qaris``). Not a vowel: vowel swaps make accepted spelling
+    variants (``grey`` / ``gray``, ``tyre`` / ``tire``); no consonant -> next-consonant pair is
+    one (the s/z, c/s and c/k variants are not neighbours). Text without consonants gets its
+    first vowel changed, text without letters its first digit."""
+    for i, char in enumerate(text):
+        if char.isascii() and char.lower() in _CONSONANTS:
+            return text[:i] + _next_consonant(char) + text[i + 1 :]
     for i, char in enumerate(text):
         low = char.lower()
         if low in _VOWELS:
             new = _VOWELS[low]
             return text[:i] + (new.upper() if char.isupper() else new) + text[i + 1 :]
-    for i, char in enumerate(text):
-        if char.isascii() and char.isalpha():
-            nxt = chr((ord(char.lower()) - ord("a") + 1) % 26 + ord("a"))
-            return text[:i] + (nxt.upper() if char.isupper() else nxt) + text[i + 1 :]
     for i, char in enumerate(text):
         if char.isascii() and char.isdigit():
             return text[:i] + str((int(char) + 1) % 10) + text[i + 1 :]
@@ -495,7 +516,9 @@ def _change_char(text: str) -> str | None:
 
 @mutant("near.change-char", category=NEAR, types=[T], method=STRUCTURAL)
 def change_char(text: str, item: Item) -> str | None:
-    """Change one letter of the text (the first vowel: ``Paris`` -> ``Peris``)."""
+    """Change one letter of the text (the first consonant to the next one: ``Paris`` ->
+    ``Qaris``; not a vowel, which can make an accepted spelling variant such as ``gray`` for
+    ``grey``)."""
     return _wrong(item, _change_char(text))
 
 
@@ -959,7 +982,9 @@ def _check_truncation(item: Item, before: str, after: str) -> CheckResult | None
             reason=f"the cut-off answer reads as {show(value)}, a different answer",
             evidence=(("case_value", show(value)), ("gold_value", show(read(item.gold, item)))),
         )
-    if value is None:
+    if value is None and read(item.gold, item) is not None:
+        # Only an argument when the gold itself reads: "12 c" from the gold "12 cm" does not
+        # read as a number, and neither does the gold, so the value 12 may be intact.
         return CheckResult(
             reason=f"the cut-off answer does not read as a {item.answer_type.value} answer",
             evidence=(("prefix_of_gold", after),),
@@ -997,8 +1022,52 @@ def _check_empty(item: Item, before: str, after: str) -> CheckResult | None:
 # --------------------------------------------------------------------------------------------
 
 
+_MATH_SPAN = re.compile(r"\$\$(.+?)\$\$|\$(.+?)\$|\\\((.+?)\\\)|\\\[(.+?)\\\]", re.S)
+_NUMBER_TOKEN = re.compile(
+    r"[-+\u2212]?(?:\d{1,3}(?:(?:,|\\,|\{,\}| |\u00a0|\u202f)\d{3})+|\d+)(?:\.\d+)?"
+    r"(?:[eE][-+]?\d+)?(?:\s*/\s*\d+)?"
+)
+_FRAC_COMMAND = re.compile(r"\\[dtc]?frac(?=\s*\{)")
+
+
+def _value_candidates(text: str) -> list[str]:
+    """Every piece of ``text`` that could be read as a value: math spans (``$...$``,
+    ``$$...$$``, ``\\(...\\)``, ``\\[...\\]``), ``\\frac{a}{b}`` groups, and number tokens
+    (signed, grouped with commas or spaces, decimals, ``e`` exponents, ``a/b``)."""
+    found = [next(group for group in m.groups() if group) for m in _MATH_SPAN.finditer(text)]
+    for match in _FRAC_COMMAND.finditer(text):
+        middle = group_end(text, text.index("{", match.end()))
+        if middle is None:
+            continue
+        second = middle
+        while second < len(text) and text[second].isspace():
+            second += 1
+        end = group_end(text, second)
+        if end is not None:
+            found.append(text[match.start() : end])
+    found += [m.group() for m in _NUMBER_TOKEN.finditer(text)]
+    return found
+
+
+def _names_the_gold(item: Item, text: str) -> bool:
+    """Whether a value in ``text`` is, or could be, the gold: equal under misgrade's reader of
+    the item's type, or (numbers) of LaTeX, or a reading whose comparison is undecided."""
+    readers = [item]
+    if item.answer_type is N:
+        readers.append(Item(id=item.id, gold=item.gold, answer_type=L))
+    for candidate in _value_candidates(text):
+        for reader in readers:
+            if read(candidate, reader) is None or read(reader.gold, reader) is None:
+                continue
+            if same(reader, reader.gold, candidate) is not False:
+                return True
+    return False
+
+
 def _echo_free(item: Item, prompt: str) -> bool:
-    """Whether the question text gives no single answer that could be the gold."""
+    """Whether the question text gives no single answer that could be the gold: for numbers
+    and LaTeX, no number, fraction or math span in it reads as the gold (``Write 0.5 as a
+    fraction`` names the gold ``\\frac{1}{2}``)."""
     gold = item.gold.strip()
     if not prompt.strip() or loose(prompt) == loose(gold):
         return False
@@ -1012,9 +1081,9 @@ def _echo_free(item: Item, prompt: str) -> bool:
     if gold in prompt:
         return False
     if kind in (N, L):
-        value = parse_number(gold) if kind is N else None
-        tokens = re.findall(r"-?\d+(?:\.\d+)?(?:/\d+)?", prompt)
-        return value is None or all(parse_number(token) != value for token in tokens)
+        if read(item.gold, item) is None:
+            return False  # no reading of the gold: nothing to show the echo differs from
+        return not _names_the_gold(item, prompt)
     if kind is J:
         return loose(gold) not in loose(prompt)
     return not mentions_word(prompt, [gold])

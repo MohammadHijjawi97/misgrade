@@ -1,8 +1,8 @@
 """Adapters: load a grader written for some framework and call it on one :class:`GradeRequest`.
 
-Owner: builder B. The protocols, the registry and :func:`load_grader` below are the contract
-(real code); the adapters themselves and :func:`resolve_spec` / :func:`coerce_score` are B's
-to implement.
+The protocols, the registry, :func:`load_grader`, :func:`resolve_spec` and
+:func:`coerce_score` below are the public interface; the built-in adapters live in the private
+modules ``adapters/_*.py``.
 
 Adapters are duck-typed: auditing your own reward function written for verl, TRL, verifiers,
 lm-eval, Inspect, OpenAI graders or promptfoo must not need that framework installed, and
@@ -73,7 +73,7 @@ ADAPTER_NAMES: tuple[str, ...] = (
     "openai",
     "promptfoo",
 )
-"""The adapter names builder B provides (the contract's vocabulary for ``--adapter``)."""
+"""The built-in adapter names (the vocabulary of ``--adapter``)."""
 
 
 @runtime_checkable

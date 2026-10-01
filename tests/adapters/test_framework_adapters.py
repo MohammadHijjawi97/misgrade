@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from adapters.helpers import TOYS, load, request, toy
-from misgrade.adapters import ADAPTERS
+from misgrade.adapters import ADAPTERS, load_grader, resolve_spec
 from misgrade.adapters._inspect import SimpleTarget, value_to_float
 from misgrade.adapters._verifiers import PlainParser
 from misgrade.errors import GraderLoadError
@@ -78,14 +78,41 @@ def test_verl_sniff(tmp_path: Path) -> None:
     verl = ADAPTERS.get("verl")
     assert verl.sniff("verl")
     assert verl.sniff("verl.utils.reward_score:default_compute_score")
-    assert verl.sniff(toy("compute_score"))  # the file mentions solution_str
+    assert verl.sniff(toy("compute_score"))  # its parameters are verl's
     plain = tmp_path / "plain.py"
     plain.write_text("def compute_score(a, b):\n    return 0.0\n", encoding="utf-8")
     assert not verl.sniff(f"{plain}:compute_score")
+    kwargs = tmp_path / "by_kwargs.py"
+    kwargs.write_text(
+        "def compute_score(**kw):\n    return kw['solution_str'] == kw['ground_truth']\n",
+        encoding="utf-8",
+    )
+    assert verl.sniff(f"{kwargs}:compute_score")
+    broken = tmp_path / "broken_syntax.py"
+    broken.write_text("def compute_score(solution_str, ground_truth:\n", encoding="utf-8")
+    assert not verl.sniff(f"{broken}:compute_score")
     assert not verl.sniff(f"{tmp_path / 'absent.py'}:compute_score")
     assert not verl.sniff("pkg.mod:compute_score")
     assert not verl.sniff("not a target")
     assert not verl.sniff("verlish:fn")
+
+
+def test_verl_sniff_reads_the_signature_not_the_file(tmp_path: Path) -> None:
+    """Review finding: a helper's parameter named solution_str made a plain
+    compute_score(answer, gold) load as verl and fail (exit 3)."""
+    sniff_me = tmp_path / "sniff_helper.py"
+    sniff_me.write_text(
+        "def last_number(solution_str):\n"
+        "    return solution_str.split()[-1]\n\n\n"
+        "def compute_score(answer, gold):\n"
+        "    return float(last_number(answer) == gold)\n",
+        encoding="utf-8",
+    )
+    target = f"{sniff_me}:compute_score"
+    assert not ADAPTERS.get("verl").sniff(target)
+    spec = resolve_spec(target)
+    assert spec.adapter == "callable"
+    assert load_grader(spec).grade(request("so 42")) == 1.0
 
 
 # --- TRL ----------------------------------------------------------------------------------------

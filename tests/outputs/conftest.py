@@ -158,6 +158,13 @@ def edge_result() -> AuditResult:
             fault=FaultMode.WORKER_DEATH,
             reference=accept(),
         ),
+        # The call the worker-death check ended on purpose: not the grader's error.
+        Observation(
+            m_identity,
+            Verdict.failure(CallStatus.CRASH, "the worker-death check ended the call on purpose"),
+            phase=Phase.FAULT,
+            fault=FaultMode.WORKER_DEATH,
+        ),
         Observation(n_slow, timeout, phase=Phase.FAULT, fault=FaultMode.TIMEOUT),
         Observation(
             n_identity, timeout, phase=Phase.FAULT, fault=FaultMode.TIMEOUT, reference=accept()
@@ -207,6 +214,10 @@ def edge_result() -> AuditResult:
         started_at="2026-02-03T04:05:06+00:00",
         duration_s=12.5,
         environment={"python": "3.13.0", "platform": "test", "sympy": "1.14.0"},
+        notes=(
+            "fault check not run: concurrency (the fault budget of 3 calls was too small)",
+            f"misgrade cannot read 1 gold answer as the item's type: {HOSTILE}",
+        ),
     )
 
 

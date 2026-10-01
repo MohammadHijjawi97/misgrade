@@ -1,6 +1,6 @@
 """Clean reference graders: correct for their answer types, so misgrade must report nothing.
 
-Owner: builder D. A clean grader must accept every variant builder A can certify and reject
+A clean grader must accept every variant misgrade can certify and reject
 every mutant, so it is written independently of misgrade's own certifiers: it does not import
 :mod:`misgrade.transforms` (a shared bug would hide itself). The reading rule is in
 :mod:`misgrade.selftest.reference`: no hedging, retracting or grader-directed word, at least one

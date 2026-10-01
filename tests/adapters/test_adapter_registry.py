@@ -74,7 +74,6 @@ def test_adapter_failures_become_load_errors(error: Exception, message: str) -> 
         ADAPTERS.unregister("broken")
 
 
-@pytest.mark.needs("adapters")
 def test_coerce_score_reads_framework_returns() -> None:
     from misgrade.adapters import coerce_score
 

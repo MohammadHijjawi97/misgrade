@@ -76,7 +76,7 @@ SIGNATURES: dict[str, list[str]] = {
         "*max_depth",
     ],
     "misgrade.gate:parse_gate": ["text"],
-    "misgrade.gate:evaluate_gate": ["gate", "summary"],
+    "misgrade.gate:evaluate_gate": ["gate", "summary", "*allow_unmeasured"],
     "misgrade.card:build_card": ["result"],
     "misgrade.card:card_schema": [],
     "misgrade.outputs:write_outputs": ["result", "formats", "out_dir"],

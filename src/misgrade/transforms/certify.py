@@ -1,7 +1,7 @@
 """Certificates: establishing, without the grader under test, that a case means the same as the
 gold answer (variant) or something different (mutant).
 
-Owner: builder A. Internal to the transforms package (no other part calls it); the rules are
+Internal to the transforms package (no other part calls it); the rules are
 part of the contract:
 
 - ``construction``: the operator's definition is the argument (appending whitespace, wrapping
@@ -9,9 +9,10 @@ part of the contract:
   argument depends on the item (a hedge needs an alternative that really is different, a
   truncation must not read as the same value) register a *check* that re-establishes that
   argument independently of the operator and adds its evidence (:func:`register_check`).
-- ``cas``: both sides are parsed into sympy expressions and compared (sympy reduces the
-  difference to 0 for equivalence; for difference, the difference evaluates to a non-zero
-  number). Parsing is done by misgrade's own small parsers (:mod:`.numbers`, :mod:`.latex`,
+- ``cas``: both sides are read and compared as values: numbers as exact fractions
+  (:mod:`.numbers`, standard library only, and the reason says so), LaTeX as sympy expressions
+  (sympy reduces the difference to 0 for equivalence; for difference, the difference
+  evaluates to a non-zero number). Parsing is done by misgrade's own small parsers (:mod:`.numbers`, :mod:`.latex`,
   :mod:`.structures`) and sympy, never by a grading library (math-verify, latex2sympy as used
   by graders), so a bug shared with the grader cannot certify its own output. A comparison
   that cannot be decided within the size and time limits gives no certificate: the case is
@@ -45,6 +46,7 @@ from misgrade.transforms.structures import (
     json_canonical,
     json_dump,
     json_load,
+    option_text,
     read_bool,
     read_mc,
     set_equal,
@@ -73,7 +75,9 @@ STRICT_ENV = "MISGRADE_STRICT"
 :class:`~misgrade.errors.CertificationError` instead of being dropped (the test suite sets
 it)."""
 
-_SYMPY_TYPES = frozenset({AnswerType.NUMBER, AnswerType.LATEX, AnswerType.INTERVAL, AnswerType.SET})
+_SYMPY_TYPES = frozenset({AnswerType.LATEX, AnswerType.INTERVAL, AnswerType.SET})
+"""Types whose readings go through sympy. Numbers do not: :mod:`.numbers` reads them as exact
+fractions with the standard library only."""
 
 
 def strict() -> bool:
@@ -143,7 +147,14 @@ def _same(answer_type: AnswerType, choices: tuple[str, ...] | None, a: str, b: s
     right = _read(answer_type, choices, b)
     if left is None or right is None:
         return None
+    if answer_type is AnswerType.MC and left != right and _same_option_text(choices, left, right):
+        return None  # two labels of one answer text: different only to a label-reading grader
     return _equal(answer_type, left, right)
+
+
+def _same_option_text(choices: tuple[str, ...] | None, a: str, b: str) -> bool:
+    texts = [option_text(choices, label) for label in (a, b)]
+    return None not in texts and loose(texts[0] or "") == loose(texts[1] or "")
 
 
 def same(item: Item, a: str, b: str) -> bool | None:
@@ -215,6 +226,9 @@ def register_check(*names: str) -> Callable[[Check], Check]:
 
 
 def _who(method: CertMethod, answer_type: AnswerType) -> str:
+    """Who compared the readings, as the certificate's reason names it."""
+    if answer_type is AnswerType.NUMBER:
+        return "misgrade's number reader (exact fractions)"
     if method is CertMethod.CAS:
         return "sympy"
     return f"misgrade's {answer_type.value} reader"
@@ -313,7 +327,7 @@ def merge_steps(kind: CaseKind, steps: Sequence[tuple[Operator, Step]]) -> Certi
 
 
 # --------------------------------------------------------------------------------------------
-# Single comparisons (the original stub API)
+# Single comparisons
 # --------------------------------------------------------------------------------------------
 
 

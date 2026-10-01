@@ -11,4 +11,4 @@ callable grader `toy_rewards:compute_score` · 2 items, 5 cases, 5 grader calls 
 
 **No findings** in the 5 grader calls made. This says what was tried and observed, not that the grader is correct.
 
-_A finding is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Rates use the main phase only._
+_A finding is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Rates and the error pattern use the main phase only._

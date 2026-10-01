@@ -166,7 +166,7 @@ def test_pre_commit_hook() -> None:
 
 
 def test_ci_runs_the_selftest_the_action_and_the_hook() -> None:
-    tail = CI[CI.index("# Builder D appends") :]
+    tail = CI[CI.index("\n  selftest:") :]
     for job in ("selftest", "action", "pre-commit"):
         assert re.search(rf"^  {job}:$", tail, re.MULTILINE), job
     assert "misgrade selftest" in tail

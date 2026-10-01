@@ -50,7 +50,6 @@ def test_unknown_format_writes_nothing(tmp_path: Path) -> None:
     assert not (tmp_path / "out").exists()
 
 
-@pytest.mark.needs("card")
 def test_card_of_the_sample_is_valid() -> None:
     from jsonschema import Draft202012Validator
 

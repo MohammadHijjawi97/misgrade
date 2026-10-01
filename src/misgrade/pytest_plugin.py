@@ -1,6 +1,6 @@
 """The pytest plugin (entry point ``pytest11: misgrade``).
 
-Owner: builder D. Loaded in every pytest session of an environment where misgrade is installed,
+Loaded in every pytest session of an environment where misgrade is installed,
 so importing it must stay cheap: it imports only pytest and the data model; the audit machinery
 (and the gate) is imported when a test first uses a fixture.
 
@@ -10,8 +10,9 @@ Provides:
   :func:`misgrade.api.audit` with the session's ``--misgrade-budget`` / ``--misgrade-seed`` and
   returns the :class:`~misgrade.models.AuditResult`;
 - the ``misgrade_conforms`` fixture: the same audit, then the test fails (with the findings,
-  their minimized responses and certificates) when the ``fail_on`` gate holds (default
-  ``findings>0``, or ``--misgrade-fail-on``);
+  their minimized responses and certificates) when the ``fail_on`` gate fails (default
+  ``findings>0``, or ``--misgrade-fail-on``): a condition holds, a condition could not be
+  measured (``allow_unmeasured=True`` turns that off), or no grader call returned a score;
 - the ``misgrade`` marker, to select or skip grader audits (``-m misgrade``); its keyword
   arguments are defaults for the fixtures in that test
   (``@pytest.mark.misgrade(answer_type="number", template="boxed")``);
@@ -118,10 +119,19 @@ def misgrade_conforms(
     session_gate: str | None = request.config.getoption("--misgrade-fail-on")
 
     def check(
-        grader: Any, items: Any = None, *, fail_on: str | None = None, **kwargs: Any
+        grader: Any,
+        items: Any = None,
+        *,
+        fail_on: str | None = None,
+        allow_unmeasured: bool = False,
+        **kwargs: Any,
     ) -> AuditResult:
+        from misgrade.gate import parse_gate
+
+        gate = fail_on or session_gate or DEFAULT_FAIL_ON
+        parse_gate(gate)  # a typo fails the test before the audit runs
         result = misgrade_audit(grader, items, **kwargs)
-        assert_conforms(result, fail_on=fail_on or session_gate or DEFAULT_FAIL_ON)
+        assert_conforms(result, fail_on=gate, allow_unmeasured=allow_unmeasured)
         return result
 
     return check
@@ -149,16 +159,21 @@ def _finding_line(finding: Finding) -> str:
 
 
 def conformance_report(
-    result: AuditResult, *, fail_on: str = DEFAULT_FAIL_ON, max_findings: int = 10
+    result: AuditResult,
+    *,
+    fail_on: str = DEFAULT_FAIL_ON,
+    max_findings: int = 10,
+    allow_unmeasured: bool = False,
 ) -> str | None:
-    """The failure message when the gate holds for the result, None when it does not."""
+    """The failure message when the gate fails for the result, None when it passes. A
+    condition that could not be measured fails it too, unless ``allow_unmeasured``."""
     from misgrade.gate import evaluate_gate, parse_gate
 
-    outcome = evaluate_gate(parse_gate(fail_on), result.summary)
+    outcome = evaluate_gate(parse_gate(fail_on), result.summary, allow_unmeasured=allow_unmeasured)
     if not outcome.failed:
         return None
-    lines = [f"misgrade: the gate {fail_on!r} holds for {result.grader.name}:"]
-    lines += [f"  {line}" for line in outcome.held]
+    lines = [f"misgrade: the gate {fail_on!r} fails for {result.grader.name}:"]
+    lines += [f"  {line}" for line in outcome.reasons]
     if result.findings:
         lines.append(f"findings ({len(result.findings)}):")
         lines += [f"  {_finding_line(f)}" for f in result.findings[:max_findings]]
@@ -171,10 +186,18 @@ def conformance_report(
 
 
 def assert_conforms(
-    result: AuditResult, *, fail_on: str = DEFAULT_FAIL_ON, max_findings: int = 10
+    result: AuditResult,
+    *,
+    fail_on: str = DEFAULT_FAIL_ON,
+    max_findings: int = 10,
+    allow_unmeasured: bool = False,
 ) -> None:
-    """Fail the current test when the gate holds for the result (see :mod:`misgrade.gate` for
-    the grammar: ``fp_rate>0.01``, ``fn>0``, ``self_validation_rate<1``, ``findings>0``)."""
-    message = conformance_report(result, fail_on=fail_on, max_findings=max_findings)
+    """Fail the current test when the gate fails for the result (see :mod:`misgrade.gate` for
+    the grammar: ``fp_rate>0.01``, ``fn>0``, ``self_validation_rate<1``, ``findings>0``): a
+    condition holds, a condition could not be measured (unless ``allow_unmeasured``), or every
+    grader call ended without a score."""
+    message = conformance_report(
+        result, fail_on=fail_on, max_findings=max_findings, allow_unmeasured=allow_unmeasured
+    )
     if message is not None:
         pytest.fail(message, pytrace=False)

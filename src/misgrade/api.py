@@ -1,17 +1,16 @@
 """The Python API: :func:`audit` one grader, :func:`compare` several.
 
-Owner: builder D (integration). This module is the reference wiring of the four parts and
-calls only their contract functions:
+This module is the reference wiring of the parts and calls only their public functions:
 
-1. builder B ``resolve_spec`` -> a spawn-safe :class:`~misgrade.models.GraderSpec`;
-2. builder D ``load_seeds`` (or the caller's items);
-3. builder A ``generate_cases`` per item -> identity + single-operator cases, then the budget;
-4. builder B ``open_session`` + ``grade_cases`` -> main-phase observations;
+1. ``adapters.resolve_spec`` -> a spawn-safe :class:`~misgrade.models.GraderSpec`;
+2. ``seeds.load_seeds`` (or the caller's items);
+3. ``transforms.generate_cases`` per item -> identity + single-operator cases, then the budget;
+4. ``runner.open_session`` + ``grade_cases`` -> main-phase observations;
 5. :func:`~misgrade.models.to_finding` -> findings (the one shared rule);
-6. builder C ``search_compositions`` (with A's ``apply_chain`` and B's session as oracle);
-7. builder C ``minimize_finding`` per false negative / false positive;
-8. builder B ``run_fault_checks`` -> fault-phase observations -> fault findings;
-9. builder C ``summarize`` -> the :class:`~misgrade.models.Summary`.
+6. ``search.search_compositions`` (``transforms.apply_chain`` rebuilds, the session grades);
+7. ``minimize.minimize_finding`` per false negative / false positive;
+8. ``runner.faults.run_fault_checks`` -> fault-phase observations -> fault findings;
+9. ``stats.summarize`` -> the :class:`~misgrade.models.Summary`.
 """
 
 from __future__ import annotations
@@ -21,13 +20,15 @@ import platform
 import random
 import sys
 import time
+import warnings
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
+from typing import Final
 
 from misgrade.adapters import in_process_only, resolve_spec
-from misgrade.errors import ConfigError
+from misgrade.errors import ConfigError, MisgradeWarning
 from misgrade.minimize import minimize_finding
 from misgrade.models import (
     AnswerType,
@@ -35,12 +36,16 @@ from misgrade.models import (
     AuditResult,
     Case,
     Category,
+    Certificate,
+    CertMethod,
+    Claim,
     DisagreementMatrix,
     FaultMode,
     Finding,
     GraderSpec,
     Isolation,
     Item,
+    Mutant,
     Observation,
     Verdict,
     resolve_template,
@@ -52,6 +57,7 @@ from misgrade.search import engine_name, search_compositions
 from misgrade.seeds import load_seeds
 from misgrade.stats import disagreement, summarize
 from misgrade.transforms import applicable_ops, apply_chain, generate_cases
+from misgrade.transforms.certify import read
 
 __all__ = [
     "GraderLike",
@@ -61,6 +67,7 @@ __all__ = [
     "environment",
     "plan_cases",
     "poison_cases",
+    "stress_case",
 ]
 
 GraderLike = GraderSpec | str | Callable[..., object]
@@ -89,7 +96,11 @@ def audit(
 
     A grader that exists only in this process (a lambda, a closure, an instance) cannot be
     imported by a spawned worker: it is graded in this process (``Isolation.NONE``, recorded
-    in the result's config), and the ``worker-death`` fault check is skipped.
+    in the result's config). In this process misgrade cannot stop a call that never returns
+    control (a parser computing ``10^(10^10)`` holds the GIL), so with ``Isolation.NONE`` the
+    ``pathological`` category is left out of the cases (unless ``include`` names it) and the
+    ``timeout`` and ``worker-death`` fault checks are skipped; the result's config and
+    ``notes`` record this, and a :class:`~misgrade.errors.MisgradeWarning` says so.
     """
     cfg = _with_overrides(
         config or AuditConfig(),
@@ -108,11 +119,22 @@ def audit(
             name=name,
         )
     )
+    notes: list[str] = []
     if in_process_only(spec) and cfg.run.isolation is Isolation.SUBPROCESS:
         # A lambda, closure or instance exists only in this process: no spawned worker can
-        # import it, so it is graded here (the worker-death fault check is then skipped).
+        # import it, so it is graded here.
         cfg = replace(cfg, run=replace(cfg.run, isolation=Isolation.NONE))
+        notes.append(
+            "the grader exists only in this process (a lambda, a closure or an instance), so "
+            "it was graded in this process (isolation 'none')"
+        )
+    if cfg.run.isolation is Isolation.NONE:
+        cfg, limits = _in_process_limits(cfg)
+        if limits:
+            notes.append(limits)
+            warnings.warn(limits, MisgradeWarning, stacklevel=2)
     pool = _items(items, cfg)
+    notes.extend(_unreadable_golds(pool))
     tmpl = resolve_template(cfg.template)
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     clock = time.perf_counter()
@@ -180,6 +202,7 @@ def audit(
         )
         observations.extend(fault_obs)
         findings.extend(_findings(fault_obs, identity, cfg))
+        notes.extend(_fault_checks_not_run(cfg, fault_obs))
 
     summary = summarize(observations, findings, errors_as_reject=cfg.errors_as_reject)
     env = environment()
@@ -197,6 +220,7 @@ def audit(
         started_at=started_at,
         duration_s=round(time.perf_counter() - clock, 3),
         environment=env,
+        notes=tuple(notes),
     )
 
 
@@ -263,24 +287,59 @@ def plan_cases(items: Sequence[Item], config: AuditConfig) -> list[Case]:
 
 
 def poison_cases(items: Sequence[Item], planned: Sequence[Case], config: AuditConfig) -> list[Case]:
-    """The pathological cases the ``timeout`` fault check uses to provoke a timeout.
+    """The cases the ``timeout`` fault check uses to provoke a timeout.
 
     The planned main-phase pathological cases when there are any; otherwise the items'
     pathological cases are generated for this purpose alone, so the check still runs when the
-    category was excluded from the main phase or did not fit the budget. (They are graded only
-    as poison: fault-phase calls without a reference, never counted in a rate.)
+    category was excluded from the main phase or did not fit the budget. Pathological
+    operators exist for number and latex items only; for other items the poison is a
+    type-agnostic stress response (:func:`stress_case`: 100,000+ characters shaped to make
+    backtracking regular expressions and recursive parsers slow), so the check runs for every
+    answer type. (Poison is graded only as poison: fault-phase calls without a reference, never
+    counted in a rate.)
     """
     poison = [case for case in planned if case.category is Category.PATHOLOGICAL]
     if poison:
         return poison
     tmpl = resolve_template(config.template)
     only = frozenset({Category.PATHOLOGICAL})
-    return [
+    poison = [
         case
         for item in items
         for case in generate_cases(item, template=tmpl, include=only, exclude=frozenset())
         if case.category is Category.PATHOLOGICAL
     ]
+    if poison:
+        return poison
+    return [stress_case(item) for item in items if item.gold.strip()]
+
+
+STRESS_OP: Final = "stress.long-response"
+"""The operator name of :func:`stress_case` (fault-check poison only, not a registered
+operator: it never enters the main phase, the search or a rate)."""
+_STRESS = "1 " * 50_000 + "(" * 2_000 + "x"
+
+
+def stress_case(item: Item) -> Mutant:
+    """A type-agnostic timeout poison for the ``timeout`` fault check: 102,001 characters of
+    ``"1 "`` repeated, 2,000 open brackets and an ``x`` (a backtracking regular expression such
+    as ``(\\d+\\s*)+$`` and a recursive-descent parser both take long on it). It is no answer
+    to any seed item, and it is never counted: only the verdicts graded after it are."""
+    return Mutant(
+        item=item,
+        response=_STRESS,
+        ops=(STRESS_OP,),
+        category=Category.PATHOLOGICAL,
+        certificate=Certificate(
+            claim=Claim.DIFFERENT,
+            method=CertMethod.CONSTRUCTION,
+            reason=(
+                f"{STRESS_OP}: a {len(_STRESS):,}-character run of digits, spaces and open "
+                "brackets that answers nothing; graded only to provoke a timeout in the "
+                "timeout fault check, never counted"
+            ),
+        ),
+    )
 
 
 def derive_seed(seed: int, key: str) -> int:
@@ -342,6 +401,78 @@ def _items(items: Iterable[Item] | None, config: AuditConfig) -> tuple[Item, ...
             raise ConfigError(f"duplicate item id {item.id!r}")
         seen.add(item.id)
     return pool
+
+
+_NOT_IN_PROCESS: Final = (FaultMode.TIMEOUT, FaultMode.WORKER_DEATH)
+
+
+def _in_process_limits(config: AuditConfig) -> tuple[AuditConfig, str | None]:
+    """The config for an in-process audit (``Isolation.NONE``), and a note saying what was
+    left out, or None when nothing was.
+
+    In-process timeouts only stop waiting: a call that holds the GIL (a parser computing
+    ``10^(10^10)``) never lets the wait return, and every call that times out keeps running in
+    the caller's process. So the ``pathological`` cases are left out (unless ``include`` names
+    the category), and so are the ``timeout`` check (whose poison is such a call) and the
+    ``worker-death`` check (there is no worker to end)."""
+    asked = config.include is not None and Category.PATHOLOGICAL in config.include
+    drop_patho = not asked and Category.PATHOLOGICAL not in config.exclude
+    dropped = [mode for mode in config.faults if mode in _NOT_IN_PROCESS]
+    if not drop_patho and not dropped:
+        return config, None
+    changed = replace(
+        config,
+        exclude=config.exclude | {Category.PATHOLOGICAL} if drop_patho else config.exclude,
+        faults=tuple(mode for mode in config.faults if mode not in _NOT_IN_PROCESS),
+    )
+    left_out = []
+    if drop_patho:
+        left_out.append("the pathological cases")
+    left_out += [f"the {mode.value} fault check" for mode in dropped]
+    return changed, (
+        "isolation 'none' cannot stop a grader call that holds the GIL (a parser computing "
+        f"10^(10^10) never returns control), so misgrade left out {_join(left_out)}; audit "
+        "a grader defined in a file ('path/to/file.py:function') to run them in a worker "
+        "process"
+    )
+
+
+def _join(parts: Sequence[str]) -> str:
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def _unreadable_golds(items: Sequence[Item]) -> list[str]:
+    """A note naming the items whose gold misgrade's own reader cannot read as the item's
+    type: operators that need the value do not apply to them, and their cases test only the
+    text."""
+    unread = [item for item in items if item.gold.strip() and read(item.gold, item) is None]
+    if not unread:
+        return []
+    shown = ", ".join(
+        f"{item.id} ({item.gold!r} as {item.answer_type.value})" for item in unread[:5]
+    )
+    more = f" and {len(unread) - 5} more" if len(unread) > 5 else ""
+    return [
+        f"misgrade cannot read {_count(len(unread), 'gold answer')} as the item's type: "
+        f"{shown}{more}; operators that need the value do not apply (check the type)"
+    ]
+
+
+def _fault_checks_not_run(config: AuditConfig, fault_obs: Sequence[Observation]) -> list[str]:
+    """A note for each requested fault check that compared no verdict."""
+    compared = {obs.fault for obs in fault_obs if obs.reference is not None}
+    missing = [mode.value for mode in config.faults if mode not in compared]
+    if not missing:
+        return []
+    return [
+        f"fault check{'s' if len(missing) > 1 else ''} not run: {', '.join(missing)} (the fault "
+        f"budget of {config.fault_budget} calls was too small for every mode, or no main-phase "
+        "verdict could be re-graded)"
+    ]
+
+
+def _count(number: int, noun: str) -> str:
+    return f"{number} {noun}" if number == 1 else f"{number} {noun}s"
 
 
 def _findings(

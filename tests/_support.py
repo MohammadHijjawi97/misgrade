@@ -25,12 +25,14 @@ from misgrade.models import (
     FaultMode,
     FaultRate,
     Finding,
+    FindingCount,
     FindingKind,
     GradeRequest,
     GraderInfo,
     Item,
     Mutant,
     Observation,
+    OperatorCount,
     PatternShare,
     Phase,
     Rate,
@@ -270,15 +272,32 @@ def sample_result() -> AuditResult:
         fp=wilson(1, 2),
         fault=wilson(1, 1),
         by_category=(
-            CategoryRate(Category.WHITESPACE, wilson(1, 1)),
-            CategoryRate(Category.NEAR_MISS, wilson(1, 1)),
-            CategoryRate(Category.HEDGE, wilson(0, 1)),
+            CategoryRate(
+                Category.WHITESPACE,
+                wilson(1, 1),
+                items=1,
+                operators=(OperatorCount("ws.trailing-space", 1, 1),),
+            ),
+            CategoryRate(
+                Category.NEAR_MISS,
+                wilson(1, 1),
+                items=1,
+                operators=(OperatorCount("number.plus-one", 1, 1),),
+            ),
+            CategoryRate(
+                Category.HEDGE,
+                wilson(0, 1),
+                items=1,
+                operators=(OperatorCount("mc.hedge-next", 0, 1),),
+            ),
         ),
         by_fault=(FaultRate(FaultMode.REPEAT, wilson(1, 1)),),
+        # Main-phase findings only; the search-phase finding is counted on its own.
         pattern=(
-            PatternShare(FindingKind.FALSE_NEGATIVE, Category.WHITESPACE, 2, 1.0),
+            PatternShare(FindingKind.FALSE_NEGATIVE, Category.WHITESPACE, 1, 1.0),
             PatternShare(FindingKind.FALSE_POSITIVE, Category.NEAR_MISS, 1, 1.0),
         ),
+        search_findings=(FindingCount(FindingKind.FALSE_NEGATIVE, Category.WHITESPACE, 1),),
     )
     return AuditResult(
         grader=GraderInfo(

@@ -33,7 +33,7 @@ from misgrade.adapters._common import (
     template_variables,
     versions_of,
 )
-from misgrade.errors import ConfigError, GraderLoadError
+from misgrade.errors import ConfigError, GraderLoadError, MisgradeWarning
 
 # --- scores -------------------------------------------------------------------------------------
 
@@ -197,6 +197,82 @@ def test_a_file_that_exits_on_import_is_not_swallowed(tmp_path: Path) -> None:
     exiting.write_text("raise SystemExit(3)\n", encoding="utf-8")
     with pytest.raises(SystemExit):
         load_target(f"{exiting}:fn")
+
+
+POOL_GRADER = """
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
+
+_POOL = None
+
+
+def _equal(answer, gold):
+    return answer.strip() == gold.strip()
+
+
+def grade(answer, gold):
+    global _POOL
+    if _POOL is None:
+        _POOL = ProcessPoolExecutor(1, mp_context=multiprocessing.get_context("spawn"))
+    return float(_POOL.submit(_equal, answer, gold).result(timeout=120))
+
+
+def shutdown():
+    if _POOL is not None:
+        _POOL.shutdown()
+"""
+
+
+def test_a_file_grader_can_send_its_own_functions_to_a_process_pool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The pool's spawned children import the grader's module by name to find _equal: the file
+    # must be imported under its own name (under a made-up one every call failed).
+    monkeypatch.setattr(sys, "path", [*sys.path])
+    path = tmp_path / "pool_grader_own_functions.py"
+    path.write_text(POOL_GRADER, encoding="utf-8")
+    loaded = load_target(f"{path}:grade")
+    assert loaded.module is not None
+    assert loaded.module.__name__ == "pool_grader_own_functions"
+    try:
+        assert loaded.obj("1 ", "1") == 1.0
+    finally:
+        loaded.module.shutdown()
+
+
+def test_a_taken_module_name_falls_back_with_a_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "path", [*sys.path])
+    paths = []
+    for folder in ("one", "two"):
+        (tmp_path / folder).mkdir()
+        path = tmp_path / folder / "same_stem_grader_k.py"
+        path.write_text(f"NAME = {folder!r}\n", encoding="utf-8")
+        paths.append(path)
+    first = load_target(f"{paths[0]}:NAME")
+    assert first.obj == "one" and first.module is not None
+    assert first.module.__name__ == "same_stem_grader_k"
+    with pytest.warns(MisgradeWarning, match="already imported.*cannot import functions"):
+        second = load_target(f"{paths[1]}:NAME")
+    assert second.obj == "two" and second.module is not None
+    assert second.module.__name__.startswith("misgrade_target_same_stem_grader_k_")
+
+
+@pytest.mark.parametrize(
+    ("file_name", "why"),
+    [("colorsys.py", "standard-library module"), ("my-rewards.py", "not a module name")],
+)
+def test_names_that_cannot_be_used_fall_back_with_a_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, file_name: str, why: str
+) -> None:
+    monkeypatch.setattr(sys, "path", [*sys.path])
+    path = tmp_path / file_name
+    path.write_text("NAME = 'mine'\n", encoding="utf-8")
+    with pytest.warns(MisgradeWarning, match=why):
+        loaded = load_target(f"{path}:NAME")
+    assert loaded.obj == "mine"
+    assert loaded.module is not None and loaded.module.__name__.startswith("misgrade_target_")
 
 
 def test_in_process_registry() -> None:

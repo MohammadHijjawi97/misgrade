@@ -7,7 +7,6 @@ import pytest
 from _support import sample_result
 
 
-@pytest.mark.needs("minimize")
 def test_ddmin_finds_the_one_failing_element() -> None:
     from misgrade.minimize import ddmin
 
@@ -22,7 +21,6 @@ def test_ddmin_finds_the_one_failing_element() -> None:
     assert chain not in calls and len(calls) <= 50
 
 
-@pytest.mark.needs("gate")
 @pytest.mark.parametrize(
     ("expression", "failed"),
     [
@@ -41,7 +39,6 @@ def test_gate_on_the_sample(expression: str, failed: bool) -> None:
     assert evaluate_gate(parse_gate(expression), sample_result().summary).failed is failed
 
 
-@pytest.mark.needs("gate")
 @pytest.mark.parametrize("expression", ["", "fp_rate", "fp_rate>>1", "nope>1", "fp.high>1"])
 def test_gate_syntax_errors(expression: str) -> None:
     from misgrade.errors import GateSyntaxError

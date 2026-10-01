@@ -584,8 +584,9 @@
         "summary": {
           "items": 3,
           "cases": 10,
-          "calls": 20,
+          "calls": 21,
           "errors": 6,
+          "injected": 1,
           "not_evaluable": 1,
           "self_validation": {
             "k": 2,
@@ -623,7 +624,9 @@
               "n": 0,
               "value": null,
               "low": 0.0,
-              "high": 1.0
+              "high": 1.0,
+              "items": 0,
+              "operators": []
             },
             {
               "category": "thousands-separator",
@@ -632,7 +635,15 @@
               "n": 1,
               "value": 0.0,
               "low": 0.0,
-              "high": 0.7934506856227626
+              "high": 0.7934506856227626,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "sep.comma",
+                  "k": 0,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "unicode-form",
@@ -641,7 +652,15 @@
               "n": 1,
               "value": 1.0,
               "low": 0.20654931437723745,
-              "high": 1.0
+              "high": 1.0,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "unicode.minus",
+                  "k": 1,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "mc-form",
@@ -650,7 +669,9 @@
               "n": 0,
               "value": null,
               "low": 0.0,
-              "high": 1.0
+              "high": 1.0,
+              "items": 0,
+              "operators": []
             },
             {
               "category": "near-miss",
@@ -659,7 +680,15 @@
               "n": 1,
               "value": 1.0,
               "low": 0.20654931437723745,
-              "high": 1.0
+              "high": 1.0,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "near.plus-one",
+                  "k": 1,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "hedge",
@@ -668,7 +697,15 @@
               "n": 1,
               "value": 1.0,
               "low": 0.20654931437723745,
-              "high": 1.0
+              "high": 1.0,
+              "items": 1,
+              "operators": [
+                {
+                  "operator": "mc.hedge-prev",
+                  "k": 1,
+                  "n": 1
+                }
+              ]
             },
             {
               "category": "pathological",
@@ -677,7 +714,9 @@
               "n": 0,
               "value": null,
               "low": 0.0,
-              "high": 1.0
+              "high": 1.0,
+              "items": 0,
+              "operators": []
             }
           ],
           "by_fault": [
@@ -710,7 +749,7 @@
             {
               "kind": "false-negative",
               "category": "unicode-form",
-              "count": 2,
+              "count": 1,
               "share": 1.0
             },
             {
@@ -730,6 +769,13 @@
               "category": "identity",
               "count": 1,
               "share": 1.0
+            }
+          ],
+          "search_findings": [
+            {
+              "kind": "false-negative",
+              "category": "unicode-form",
+              "count": 1
             }
           ]
         },

@@ -1,6 +1,6 @@
 ## misgrade: my "grader" \<v2\>
 
-verl grader `C:\Users\Me\rewards\math rewards.py:compute_score` · 3 items, 10 cases, 20 grader calls · template `\boxed{{answer}}` · seed 7 · misgrade 0.0.0-test
+verl grader `C:\Users\Me\rewards\math rewards.py:compute_score` · 3 items, 10 cases, 21 grader calls · template `\boxed{{answer}}` · seed 7 · misgrade 0.0.0-test
 
 | Measure | Observed | Rate | 95% CI |
 | --- | --- | ---: | --- |
@@ -9,11 +9,16 @@ verl grader `C:\Users\Me\rewards\math rewards.py:compute_score` · 3 items, 10 c
 | False negatives | 1 of 2 equivalent answers rejected | 50.0% | 9.5% to 90.5% |
 | Fault checks | 3 of 4 verdicts changed under runtime faults | 75.0% | 30.1% to 95.4% |
 
-6 calls ended without a score (error, timeout or crash); 1 variants were not evaluable (their item's gold answer was not accepted).
+6 of 20 grader calls ended without a score (error, timeout or crash), left out of every rate; 1 call ended on purpose by the worker-death check (not counted as an error); 1 variant not evaluable (the gold answer of the item was not accepted).
+
+Notes:
+
+- fault check not run: concurrency (the fault budget of 3 calls was too small)
+- misgrade cannot read 1 gold answer as the item's type: \<script\>alert("x")\</script\> \]\]\> \`tick\` \`\`two\`\` \| pipe \*star\* \_under\_ \\boxed{1} \[bold\]markup\[/bold\] & --\> \<!-- nul\\u0000 c1 del\\u007f lone\\ud83d surrogate
 
 **8 findings:** 2 false negatives, 2 false positives, 1 self-validation failure, 3 faults.
 
-Categories with findings in the main phase: unicode-form (1/1), near-miss (1/1), hedge (1/1).
+Categories with findings in the main phase: unicode-form (1/1 on 1 item), near-miss (1/1 on 1 item), hedge (1/1 on 1 item). A category's cases are its operators applied to every item, not independent draws: its 95% interval is conditional on these items and operators (per-operator counts are in the card).
 
 | # | Kind | Category | Response | Gold | Expected | Observed |
 | ---: | --- | --- | --- | --- | --- | --- |
@@ -37,4 +42,4 @@ Certificates (why each expected verdict holds):
 7. `mc-003::identity`: the response is the gold answer itself
 8. `number-007::identity`: the response is the gold answer itself
 
-_A finding is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Rates use the main phase only._
+_A finding is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Rates and the error pattern use the main phase only._

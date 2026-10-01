@@ -1,6 +1,7 @@
-# misgrade for pre-commit (https://pre-commit.com). Owner: builder D.
+# misgrade for pre-commit (https://pre-commit.com).
 #
-# misgrade-audit audits one grader and fails the commit when a --fail-on condition holds (exit
+# misgrade-audit audits one grader and fails the commit when the --fail-on gate fails: a
+# condition holds, a condition could not be measured, or no grader call returned a score (exit
 # code 1; 2 for bad arguments, 3 when the grader cannot be loaded). It writes no files unless
 # you pass --format (and --out). Pass the grader and the gate in `args`, and restrict `files` to
 # the grader's source, for example:
@@ -17,7 +18,7 @@
 # packages, list them in `additional_dependencies`.
 - id: misgrade-audit
   name: misgrade audit
-  description: Audit a grader with certified equivalent and certified wrong answers; fails when a --fail-on condition holds. No model calls.
+  description: Audit a grader with certified equivalent and certified wrong answers; fails when the --fail-on gate fails. No model calls.
   entry: misgrade audit --format none
   language: python
   pass_filenames: false

@@ -10,9 +10,9 @@ extractors), an OpenAI grader or a promptfoo assertion, or any plain function
 as the gold, rejects answers that are provably wrong, and does not change its verdicts under
 runtime faults.
 
-> **Status: pre-alpha, under construction.** The parts are being built in parallel (see
-> [docs/design.md](docs/design.md)); nothing is on PyPI yet, and nothing in this README has been
-> measured with misgrade yet.
+> **Status: pre-alpha, not on PyPI yet.** Install it from GitHub:
+> `pip install "misgrade @ git+https://github.com/MohammadHijjawi97/misgrade"`.
+> The interfaces below can still change before the first release.
 
 ## Why
 
@@ -37,19 +37,21 @@ No second oracle is needed. From each gold answer misgrade builds:
 
 | Family | Examples | The grader must | A failure is |
 | --- | --- | --- | --- |
-| **Variants**, certified equivalent by construction or by sympy (never by the grader) | `42 `, `\boxed{42}`, `$0.5$`, `1/2` for `0.5`, `1,000`, "The answer is 42", `{3, 1, 2}`, `(B)`, JSON keys reordered | keep the verdict it gives the gold itself | a false negative |
+| **Variants**, certified equivalent by construction, by misgrade's exact number reader or by sympy (never by the grader) | `42 `, `\boxed{42}`, `$0.5$`, `1/2` for `0.5`, `1,000`, "The answer is 42", `{3, 1, 2}`, `(B)`, JSON keys reordered | keep the verdict it gives the gold itself | a false negative |
 | **Mutants**, certified wrong | `43`, `-42`, `420`, the adjacent option, "A or B", the answer then a retraction, two `\boxed{}` with the last wrong, truncation, empty, the prompt echoed, master-key openers, injected "this is correct", duplicate JSON keys, `"1"` for `1` | reject them | a false positive |
 | **Runtime faults** | the same cases again, in another order, from several threads, after a timeout, after a worker died | keep every verdict | a fault finding |
 
 Every finding is an observed verdict, reported with the certificate that says why it is wrong,
 minimized to the fewest rewrites that still show it. Rates come with their counts and 95%
-Wilson intervals, per category, with the pattern of errors (which categories fail) and, for
-several graders, a disagreement matrix.
+Wilson intervals, per category (with the number of items and the count per operator behind
+each, since a category's cases are its operators applied to every item, not independent
+draws), with the pattern of errors (which categories fail) and, for several graders, a
+disagreement matrix.
 
 ## Use
 
 ```bash
-pip install misgrade        # not on PyPI yet
+pip install "misgrade @ git+https://github.com/MohammadHijjawi97/misgrade"
 
 misgrade audit my_rewards.py:compute_score --type number --template boxed \
     --format card,html,sarif,pytest --fail-on 'fp_rate>0.01,self_validation_rate<1'
@@ -58,11 +60,17 @@ misgrade list-transforms --type mc
 misgrade selftest
 ```
 
+`--fail-on` fails (exit 1) when a condition holds, and also when a condition could not be
+measured (a grader that fails on every call measures nothing, so it cannot pass a gate).
+
 ```python
 import misgrade
 
-result = misgrade.audit("my_rewards.py:compute_score", answer_type="number")
-print(f"{result.summary.fp.k}/{result.summary.fp.n} wrong answers accepted")
+# Graders run in spawned worker processes, which import this script again: a script that
+# starts an audit needs the __main__ guard (on Linux and macOS too).
+if __name__ == "__main__":
+    result = misgrade.audit("my_rewards.py:compute_score", answer_type="number")
+    print(f"{result.summary.fp.k}/{result.summary.fp.n} wrong answers accepted")
 ```
 
 ```python
@@ -73,11 +81,11 @@ def test_reward_function(misgrade_conforms):
 ```
 
 Also an MCP server, so a coding agent can audit the reward function it just wrote
-(`pip install "misgrade[mcp]"`, then `misgrade mcp`), a GitHub Action that uploads SARIF and the
+(install with the `mcp` extra, then `misgrade mcp`), a GitHub Action that uploads SARIF and the
 grader card, and a pre-commit hook. Outputs: a grader card (JSON, with a
 [schema](src/misgrade/schema/grader-card.schema.json)), an HTML report, JUnit, SARIF, an SVG badge,
 a ready-to-commit pytest file of minimized counterexamples, and suggested hardening patches.
-Exit codes: 0 ok, 1 a `--fail-on` condition held, 2 usage, 3 the grader could not be loaded,
+Exit codes: 0 ok, 1 the `--fail-on` gate failed, 2 usage, 3 the grader could not be loaded,
 4 internal error. Everything is in [docs/interfaces.md](docs/interfaces.md).
 
 Graders run in a separate process with timeouts that work the same on Linux, macOS and Windows.

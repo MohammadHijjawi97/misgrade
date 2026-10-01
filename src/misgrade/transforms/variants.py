@@ -1,6 +1,6 @@
 """Built-in variant operators (meaning-preserving rewrites), registered on import.
 
-Owner: builder A. One function per operator, decorated with
+One function per operator, decorated with
 :func:`misgrade.transforms.registry.variant`, grouped by category. Every operator has a
 Hypothesis property test that its outputs really are equivalent (tests/transforms/).
 
@@ -792,9 +792,19 @@ def unicode_cup(text: str, item: Item) -> str | None:
     return _changed(text, re.sub(r"\\cup(?![A-Za-z])", "∪", text))
 
 
+_ENDS_RADICAND = re.compile(r"\s*(?:$|[-+=,;)\]}]|\\cdot(?![A-Za-z])|\\right(?![A-Za-z]))")
+"""What may follow a bare radicand (``√3``) without changing what a reader takes as the
+radicand: the end, an operator that binds looser than the root, or a closing bracket."""
+
+
 @variant("unicode.sqrt", category=Category.UNICODE_FORM, types=[L], method=CAS)
 def unicode_sqrt(text: str, item: Item) -> str | None:
-    """Write ``\\sqrt{x}`` with the radical sign √ (U+221A), parenthesized when needed."""
+    """Write ``\\sqrt{x}`` with the radical sign √ (U+221A), parenthesized unless nothing
+    can join the radicand (``√3 + 1``, but ``√(x)y``).
+
+    √ has no agreed precedence (``√xy`` is often read as √(xy)), so a bare radicand is one
+    number or letter followed by the end, ``+``, ``-``, ``=``, ``\\cdot`` or a closing
+    bracket."""
     if "\\sqrt{" not in text or read(text, item) is None:
         return None
     out = text
@@ -806,7 +816,8 @@ def unicode_sqrt(text: str, item: Item) -> str | None:
         if end is None:
             return None
         inner = out[start + len("\\sqrt{") : end - 1]
-        radicand = inner if re.fullmatch(r"\d+|[A-Za-z]", inner) else f"({inner})"
+        bare = re.fullmatch(r"\d+|[A-Za-z]", inner) and _ENDS_RADICAND.match(out, end)
+        radicand = inner if bare else f"({inner})"
         out = out[:start] + "√" + radicand + out[end:]
     return _kept(item, text, out)
 
@@ -818,9 +829,12 @@ def nfd(text: str, item: Item) -> str | None:
     return _changed(text, unicodedata.normalize("NFD", text))
 
 
-@variant("unicode.nbsp", category=Category.UNICODE_FORM, types=[N, M, B, T], scope=RESPONSE)
+@variant("unicode.nbsp", category=Category.UNICODE_FORM, types=[N, M, B, T])
 def nbsp(text: str, item: Item) -> str | None:
-    """Write the spaces of the response as no-break spaces (U+00A0)."""
+    """Write the spaces inside the answer (not the template's) as no-break spaces (U+00A0).
+
+    The spaces of the response template (``#### ``, ``Final answer: ``) belong to the format
+    the grader's contract fixes, so they are left alone."""
     if " " not in text:
         return None
     return text.replace(" ", "\u00a0")

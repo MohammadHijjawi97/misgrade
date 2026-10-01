@@ -1,7 +1,7 @@
 """The self-test: misgrade audits toy graders with known bugs (it must find every one) and
 toy graders without bugs (it must find nothing).
 
-Owner: builder D. ``misgrade selftest`` and CI run it; the targets are 100% recall on
+``misgrade selftest`` and CI run it; the targets are 100% recall on
 :data:`PLANTED` and zero findings on :data:`CLEAN`.
 
 - A **planted** grader is built to show exactly one class of error: one per variant category
