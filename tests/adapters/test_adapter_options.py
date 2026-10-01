@@ -691,6 +691,50 @@ def test_math_verify_options(math_verify: list[tuple[str, Any]]) -> None:
         bad.grade(request("42"))
 
 
+def test_math_verify_timeouts_off_need_a_release_that_can_turn_them_off(
+    math_verify: list[tuple[str, Any]], install: Callable[..., ModuleType]
+) -> None:
+    """Math-Verify 0.5's ``timeout(None)`` still wraps the function and starts a timer, which
+    fails on None (``signal.alarm(None)``); ``parse`` swallows that and returns nothing, so
+    with the target's default (timeouts off) every answer would be rejected, silently (review
+    finding)."""
+
+    def old_timeout(timeout_seconds: Any = 10) -> Callable[[Any], Any]:
+        def decorator(func: Any) -> Any:
+            def wrapper(*args: Any, **kwargs: Any) -> Any:  # pragma: no cover - not called
+                raise TypeError("'NoneType' object cannot be interpreted as an integer")
+
+            return wrapper
+
+        return decorator
+
+    install("math_verify.utils", timeout=old_timeout)
+    with pytest.raises(GraderLoadError, match="cannot turn its own timeouts off"):
+        load("callable", "math-verify")
+    with pytest.raises(GraderLoadError, match="verify_timeout None"):
+        load("callable", "math-verify", kwargs={"parsing_timeout": 5})
+    given = load("callable", "math-verify", kwargs={"parsing_timeout": 5, "verify_timeout": 5})
+    assert given.grade(request("$42$")) == 1.0
+    assert math_verify[-1][1][2] == 5
+
+    def new_timeout(timeout_seconds: Any = 10) -> Callable[[Any], Any]:
+        if timeout_seconds is None:
+            return lambda func: func
+        return old_timeout(timeout_seconds)  # pragma: no cover - not reached
+
+    install("math_verify.utils", timeout=new_timeout)
+    assert load("callable", "math-verify").grade(request("$42$")) == 1.0
+
+    def failing_timeout(timeout_seconds: Any = 10) -> Any:
+        raise TypeError("timeout_seconds must be a number")
+
+    install("math_verify.utils", timeout=failing_timeout)
+    with pytest.raises(GraderLoadError, match="cannot turn its own timeouts off"):
+        load("callable", "math-verify")
+    install("math_verify.utils")  # no timeout decorator to check
+    assert load("callable", "math-verify").grade(request("$42$")) == 1.0
+
+
 def test_math_verify_must_be_installed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "math_verify", None)
     with pytest.raises(GraderLoadError, match="misgrade\\[math-verify\\]"):

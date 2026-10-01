@@ -102,6 +102,12 @@ class CallableAdapter:
         # result says how it was configured.
         given = dict(get_option(spec.options, "kwargs", dict, {}, adapter=self.name))
         effective = {**_keyword_defaults(loaded.obj), **given}
+        # A setting the installed library cannot run (Math-Verify's timeouts off on a release
+        # that cannot turn them off) would fail every call silently: refuse it here.
+        check = getattr(loaded.module, "unsupported_settings", None)
+        problem = check(effective) if callable(check) else None
+        if problem:
+            raise GraderLoadError(f"the built-in target {spec.target!r}: {problem}")
         info = replace(grader.info, options={**grader.info.options, "kwargs": effective})
         return replace(grader, info=info)
 

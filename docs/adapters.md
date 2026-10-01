@@ -96,7 +96,10 @@ library's own timeouts in seconds, off by default: misgrade's per-call timeout s
 that runs too long, the same way on every OS and from any thread),
 `wrap_gold`, and anything else `verify` takes (`float_rounding`, `numeric_precision`,
 `strict`, `allow_set_relation_comp`). The result records the effective values in
-`grader.options.kwargs`.
+`grader.options.kwargs`. Turning the timeouts off needs a Math-Verify whose `timeout` accepts
+None; an older release (0.5) still starts a timer, which fails on None (`signal.alarm(None)`
+on POSIX) inside `parse`, which then returns nothing for every answer. On such a release the
+target is refused at load unless both timeouts are given in seconds.
 
 ### `verl`
 

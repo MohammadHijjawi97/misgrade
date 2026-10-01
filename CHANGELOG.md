@@ -145,6 +145,10 @@ Found by loading third-party graders through the adapters; each has a regression
   installs and what installing misgrade adds to a grader's environment.
 - The `--template` row of docs/interfaces.md shows `\boxed{{answer}}` again: two backspace
   characters had replaced its `\b`. A test keeps control characters out of the docs.
+- The built-in target `math-verify` is refused at load, with what to pass instead, when the
+  installed Math-Verify cannot turn its timeouts off (0.5 starts a timer even for None, which
+  fails on POSIX inside `parse`): with the target's default it would have rejected every
+  answer without an error.
 
 Found by a review of the integrated pipeline; each has a regression test.
 
