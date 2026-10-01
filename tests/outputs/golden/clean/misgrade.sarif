@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "misgrade",
+          "version": "0.0.0-test",
+          "informationUri": "https://github.com/MohammadHijjawi97/misgrade",
+          "rules": []
+        }
+      },
+      "automationDetails": {
+        "id": "misgrade/toy/"
+      },
+      "results": [],
+      "properties": {
+        "grader": {
+          "name": "toy",
+          "adapter": "callable",
+          "target": "toy_rewards:compute_score",
+          "source": "toy_rewards.py:12",
+          "versions": {
+            "toy": "1.0"
+          }
+        },
+        "summary": {
+          "items": 2,
+          "cases": 5,
+          "calls": 5,
+          "errors": 0,
+          "not_evaluable": 0,
+          "self_validation": {
+            "k": 2,
+            "n": 2,
+            "value": 1.0,
+            "low": 0.34238022750665303,
+            "high": 1.0
+          },
+          "fn": {
+            "k": 0,
+            "n": 1,
+            "value": 0.0,
+            "low": 0.0,
+            "high": 0.7934506856227626
+          },
+          "fp": {
+            "k": 0,
+            "n": 2,
+            "value": 0.0,
+            "low": 0.0,
+            "high": 0.6576197724933469
+          },
+          "fault": {
+            "k": 0,
+            "n": 0,
+            "value": null,
+            "low": 0.0,
+            "high": 1.0
+          },
+          "by_category": [
+            {
+              "category": "whitespace",
+              "kind": "false-negative",
+              "k": 0,
+              "n": 1,
+              "value": 0.0,
+              "low": 0.0,
+              "high": 0.7934506856227626
+            },
+            {
+              "category": "near-miss",
+              "kind": "false-positive",
+              "k": 0,
+              "n": 1,
+              "value": 0.0,
+              "low": 0.0,
+              "high": 0.7934506856227626
+            },
+            {
+              "category": "hedge",
+              "kind": "false-positive",
+              "k": 0,
+              "n": 1,
+              "value": 0.0,
+              "low": 0.0,
+              "high": 0.7934506856227626
+            }
+          ],
+          "by_fault": [],
+          "pattern": []
+        },
+        "startedAt": "2026-01-01T00:00:00+00:00"
+      },
+      "originalUriBaseIds": {
+        "%SRCROOT%": {
+          "description": {
+            "text": "repository root"
+          }
+        }
+      }
+    }
+  ]
+}

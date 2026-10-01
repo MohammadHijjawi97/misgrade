@@ -1,0 +1,1152 @@
+{
+  "format": "misgrade.result",
+  "format_version": 1,
+  "misgrade_version": "0.0.0-test",
+  "started_at": "2026-02-03T04:05:06+00:00",
+  "duration_s": 12.5,
+  "environment": {
+    "python": "3.13.0",
+    "platform": "test",
+    "sympy": "1.14.0"
+  },
+  "grader": {
+    "name": "my \"grader\" <v2>",
+    "adapter": "verl",
+    "target": "C:\\Users\\Me\\rewards\\math rewards.py:compute_score",
+    "source": "C:\\Users\\Me\\rewards\\math rewards.py:42",
+    "versions": {
+      "sympy": "1.14.0",
+      "math-verify": "0.8.0"
+    }
+  },
+  "config": {
+    "answer_type": null,
+    "template": "boxed",
+    "budget": 40,
+    "seed": 7,
+    "include": null,
+    "exclude": [],
+    "search": true,
+    "minimize": true,
+    "minimize_budget": 50,
+    "faults": [
+      "worker-death",
+      "timeout",
+      "repeat"
+    ],
+    "fault_budget": 200,
+    "errors_as_reject": false,
+    "run": {
+      "isolation": "subprocess",
+      "timeout_s": 10.0,
+      "startup_timeout_s": 120.0,
+      "accept_threshold": 0.5,
+      "concurrency": 4
+    }
+  },
+  "items": [
+    {
+      "id": "number-007",
+      "type": "number",
+      "gold": "-1000",
+      "prompt": "How much? <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\nSecond line\twith a tab."
+    },
+    {
+      "id": "mc-003",
+      "type": "mc",
+      "gold": "B",
+      "prompt": "Pick one.",
+      "choices": [
+        "a | b",
+        "`c`",
+        "<d>",
+        "été"
+      ],
+      "meta": {
+        "source": "hand-written",
+        "tags": [
+          "x",
+          "y"
+        ],
+        "weight": 1.5,
+        "flag": true
+      }
+    },
+    {
+      "id": "string-002",
+      "type": "string",
+      "gold": "say \"hi\""
+    }
+  ],
+  "observations": [
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::identity",
+        "item_id": "number-007",
+        "response": "\\boxed{-1000}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::unicode.minus",
+        "item_id": "number-007",
+        "response": "\\boxed{−1000}",
+        "ops": [
+          "unicode.minus"
+        ],
+        "category": "unicode-form",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::sep.comma",
+        "item_id": "number-007",
+        "response": "\\boxed{-1,000}",
+        "ops": [
+          "sep.comma"
+        ],
+        "category": "thousands-separator",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "number-007::near.plus-one",
+        "item_id": "number-007",
+        "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\u0007😀",
+        "ops": [
+          "near.plus-one"
+        ],
+        "category": "near-miss",
+        "certificate": {
+          "claim": "different",
+          "method": "structural",
+          "reason": "names two options | so it commits to no single answer",
+          "evidence": {
+            "labels": "A, B"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.25
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "number-007::patho.tower",
+        "item_id": "number-007",
+        "response": "\\boxed{10^{10^{10}}}",
+        "ops": [
+          "patho.tower"
+        ],
+        "category": "pathological",
+        "certificate": {
+          "claim": "different",
+          "method": "structural",
+          "reason": "names two options | so it commits to no single answer",
+          "evidence": {
+            "labels": "A, B"
+          }
+        }
+      },
+      "verdict": {
+        "status": "timeout",
+        "score": null,
+        "accepted": null,
+        "error": "no answer within 10 s",
+        "elapsed_s": 0.0
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "mc-003::identity",
+        "item_id": "mc-003",
+        "response": "\\boxed{B}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "mc-003::mc.hedge-prev",
+        "item_id": "mc-003",
+        "response": "\\boxed{A or B}",
+        "ops": [
+          "mc.hedge-prev"
+        ],
+        "category": "hedge",
+        "certificate": {
+          "claim": "different",
+          "method": "structural",
+          "reason": "names two options | so it commits to no single answer",
+          "evidence": {
+            "labels": "A, B"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.75,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "mc-003::mc.bold",
+        "item_id": "mc-003",
+        "response": "\\boxed{**B**}",
+        "ops": [
+          "mc.bold"
+        ],
+        "category": "mc-form",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "verdict": {
+        "status": "error",
+        "score": null,
+        "accepted": null,
+        "error": "ValueError: bad \"input\" <here>\u0000",
+        "elapsed_s": 0.0
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "string-002::identity",
+        "item_id": "string-002",
+        "response": "\\boxed{say \"hi\"}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "string-002::ws.trailing-space",
+        "item_id": "string-002",
+        "response": "\\boxed{say \"hi\"} ",
+        "ops": [
+          "ws.trailing-space"
+        ],
+        "category": "whitespace",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::sep.comma+unicode.minus+phrase.the-answer-is",
+        "item_id": "number-007",
+        "response": "The answer is \\boxed{−1,000}.\n",
+        "ops": [
+          "sep.comma",
+          "unicode.minus",
+          "phrase.the-answer-is"
+        ],
+        "category": "thousands-separator",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "search",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::sep.comma",
+        "item_id": "number-007",
+        "response": "\\boxed{-1,000}",
+        "ops": [
+          "sep.comma"
+        ],
+        "category": "thousands-separator",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "minimize",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::unicode.minus",
+        "item_id": "number-007",
+        "response": "\\boxed{−1000}",
+        "ops": [
+          "unicode.minus"
+        ],
+        "category": "unicode-form",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "minimize",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::identity",
+        "item_id": "number-007",
+        "response": "\\boxed{-1000}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "crash",
+        "score": null,
+        "accepted": null,
+        "error": "worker exited with code -9",
+        "elapsed_s": 0.0
+      },
+      "phase": "fault",
+      "fault": "worker-death",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "mc-003::identity",
+        "item_id": "mc-003",
+        "response": "\\boxed{B}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "fault",
+      "fault": "worker-death",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "number-007::patho.tower",
+        "item_id": "number-007",
+        "response": "\\boxed{10^{10^{10}}}",
+        "ops": [
+          "patho.tower"
+        ],
+        "category": "pathological",
+        "certificate": {
+          "claim": "different",
+          "method": "structural",
+          "reason": "names two options | so it commits to no single answer",
+          "evidence": {
+            "labels": "A, B"
+          }
+        }
+      },
+      "verdict": {
+        "status": "timeout",
+        "score": null,
+        "accepted": null,
+        "error": "no answer within 10 s",
+        "elapsed_s": 0.0
+      },
+      "phase": "fault",
+      "fault": "timeout",
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::identity",
+        "item_id": "number-007",
+        "response": "\\boxed{-1000}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "timeout",
+        "score": null,
+        "accepted": null,
+        "error": "no answer within 10 s",
+        "elapsed_s": 0.0
+      },
+      "phase": "fault",
+      "fault": "timeout",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "mc-003::identity",
+        "item_id": "mc-003",
+        "response": "\\boxed{B}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "error",
+        "score": null,
+        "accepted": null,
+        "error": "ValueError: bad \"input\" <here>\u0000",
+        "elapsed_s": 0.0
+      },
+      "phase": "fault",
+      "fault": "timeout",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-007::identity",
+        "item_id": "number-007",
+        "response": "\\boxed{-1000}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "fault",
+      "fault": "repeat",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "string-002::identity",
+        "item_id": "string-002",
+        "response": "\\boxed{say \"hi\"}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "fault",
+      "fault": "repeat",
+      "reference": {
+        "status": "error",
+        "score": null,
+        "accepted": null,
+        "error": "ValueError: bad \"input\" <here>\u0000",
+        "elapsed_s": 0.0
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "false-negative:number-007::unicode.minus",
+      "kind": "false-negative",
+      "case": {
+        "kind": "variant",
+        "id": "number-007::unicode.minus",
+        "item_id": "number-007",
+        "response": "\\boxed{−1000}",
+        "ops": [
+          "unicode.minus"
+        ],
+        "category": "unicode-form",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": null,
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "false-positive:number-007::near.plus-one",
+      "kind": "false-positive",
+      "case": {
+        "kind": "mutant",
+        "id": "number-007::near.plus-one",
+        "item_id": "number-007",
+        "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\u0007😀",
+        "ops": [
+          "near.plus-one"
+        ],
+        "category": "near-miss",
+        "certificate": {
+          "claim": "different",
+          "method": "structural",
+          "reason": "names two options | so it commits to no single answer",
+          "evidence": {
+            "labels": "A, B"
+          }
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.25
+      },
+      "reference": null,
+      "fault": null,
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "false-positive:mc-003::mc.hedge-prev",
+      "kind": "false-positive",
+      "case": {
+        "kind": "mutant",
+        "id": "mc-003::mc.hedge-prev",
+        "item_id": "mc-003",
+        "response": "\\boxed{A or B}",
+        "ops": [
+          "mc.hedge-prev"
+        ],
+        "category": "hedge",
+        "certificate": {
+          "claim": "different",
+          "method": "structural",
+          "reason": "names two options | so it commits to no single answer",
+          "evidence": {
+            "labels": "A, B"
+          }
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.75,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": null,
+      "fault": null,
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "self-validation:string-002::identity",
+      "kind": "self-validation",
+      "case": {
+        "kind": "variant",
+        "id": "string-002::identity",
+        "item_id": "string-002",
+        "response": "\\boxed{say \"hi\"}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": null,
+      "fault": null,
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "false-negative:number-007::sep.comma+unicode.minus+phrase.the-answer-is",
+      "kind": "false-negative",
+      "case": {
+        "kind": "variant",
+        "id": "number-007::sep.comma+unicode.minus+phrase.the-answer-is",
+        "item_id": "number-007",
+        "response": "The answer is \\boxed{−1,000}.\n",
+        "ops": [
+          "sep.comma",
+          "unicode.minus",
+          "phrase.the-answer-is"
+        ],
+        "category": "thousands-separator",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": null,
+      "minimized": {
+        "kind": "variant",
+        "id": "number-007::unicode.minus",
+        "item_id": "number-007",
+        "response": "\\boxed{−1000}",
+        "ops": [
+          "unicode.minus"
+        ],
+        "category": "unicode-form",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "cas",
+          "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+          "evidence": {
+            "sympy": "1.14.0",
+            "value": "-1000"
+          }
+        }
+      },
+      "minimized_verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    },
+    {
+      "id": "fault:number-007::identity@worker-death",
+      "kind": "fault",
+      "case": {
+        "kind": "variant",
+        "id": "number-007::identity",
+        "item_id": "number-007",
+        "response": "\\boxed{-1000}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "observed": {
+        "status": "crash",
+        "score": null,
+        "accepted": null,
+        "error": "worker exited with code -9",
+        "elapsed_s": 0.0
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": "worker-death",
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "fault:mc-003::identity@timeout",
+      "kind": "fault",
+      "case": {
+        "kind": "variant",
+        "id": "mc-003::identity",
+        "item_id": "mc-003",
+        "response": "\\boxed{B}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "observed": {
+        "status": "error",
+        "score": null,
+        "accepted": null,
+        "error": "ValueError: bad \"input\" <here>\u0000",
+        "elapsed_s": 0.0
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": "timeout",
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "fault:number-007::identity@repeat",
+      "kind": "fault",
+      "case": {
+        "kind": "variant",
+        "id": "number-007::identity",
+        "item_id": "number-007",
+        "response": "\\boxed{-1000}",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": "repeat",
+      "minimized": null,
+      "minimized_verdict": null
+    }
+  ],
+  "summary": {
+    "items": 3,
+    "cases": 10,
+    "calls": 20,
+    "errors": 6,
+    "not_evaluable": 1,
+    "self_validation": {
+      "k": 2,
+      "n": 3,
+      "value": 0.6666666666666666,
+      "low": 0.2076596008020477,
+      "high": 0.9385080552796037
+    },
+    "fn": {
+      "k": 1,
+      "n": 2,
+      "value": 0.5,
+      "low": 0.09453120573423074,
+      "high": 0.9054687942657693
+    },
+    "fp": {
+      "k": 2,
+      "n": 2,
+      "value": 1.0,
+      "low": 0.34238022750665303,
+      "high": 1.0
+    },
+    "fault": {
+      "k": 3,
+      "n": 4,
+      "value": 0.75,
+      "low": 0.30064184258240184,
+      "high": 0.9544127391902995
+    },
+    "by_category": [
+      {
+        "category": "whitespace",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "low": 0.0,
+        "high": 1.0
+      },
+      {
+        "category": "thousands-separator",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      },
+      {
+        "category": "unicode-form",
+        "kind": "false-negative",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "mc-form",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "low": 0.0,
+        "high": 1.0
+      },
+      {
+        "category": "near-miss",
+        "kind": "false-positive",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "hedge",
+        "kind": "false-positive",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "pathological",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 0,
+        "value": null,
+        "low": 0.0,
+        "high": 1.0
+      }
+    ],
+    "by_fault": [
+      {
+        "mode": "repeat",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "mode": "timeout",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "mode": "worker-death",
+        "k": 1,
+        "n": 2,
+        "value": 0.5,
+        "low": 0.09453120573423074,
+        "high": 0.9054687942657693
+      }
+    ],
+    "pattern": [
+      {
+        "kind": "false-negative",
+        "category": "unicode-form",
+        "count": 2,
+        "share": 1.0
+      },
+      {
+        "kind": "false-positive",
+        "category": "near-miss",
+        "count": 1,
+        "share": 0.5
+      },
+      {
+        "kind": "false-positive",
+        "category": "hedge",
+        "count": 1,
+        "share": 0.5
+      },
+      {
+        "kind": "self-validation",
+        "category": "identity",
+        "count": 1,
+        "share": 1.0
+      }
+    ]
+  }
+}

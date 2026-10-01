@@ -201,12 +201,15 @@
       }
     },
     "shownCase": {
+      "description": "The smallest case found that still shows the finding (fewest operators), with its own certificate.",
       "type": "object",
       "required": ["case_id", "response", "ops", "verdict"],
       "properties": {
         "case_id": {"type": "string"},
+        "category": {"$ref": "#/$defs/category"},
         "response": {"type": "string"},
         "ops": {"type": "array", "items": {"type": "string"}},
+        "certificate": {"$ref": "#/$defs/certificate"},
         "verdict": {"$ref": "#/$defs/verdict"}
       }
     },

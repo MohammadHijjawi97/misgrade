@@ -1,0 +1,577 @@
+{
+  "format": "misgrade.result",
+  "format_version": 1,
+  "misgrade_version": "0.0.0-test",
+  "started_at": "2026-01-01T00:00:00+00:00",
+  "duration_s": 1.25,
+  "environment": {
+    "python": "3.13.0",
+    "platform": "test",
+    "sympy": "1.13.3"
+  },
+  "grader": {
+    "name": "toy",
+    "adapter": "callable",
+    "target": "toy_rewards:compute_score",
+    "source": "toy_rewards.py:12",
+    "versions": {
+      "toy": "1.0"
+    }
+  },
+  "config": {
+    "answer_type": null,
+    "template": "{answer}",
+    "budget": 50,
+    "seed": 0,
+    "include": null,
+    "exclude": [],
+    "search": true,
+    "minimize": true,
+    "minimize_budget": 50,
+    "faults": [
+      "repeat"
+    ],
+    "fault_budget": 200,
+    "errors_as_reject": false,
+    "run": {
+      "isolation": "subprocess",
+      "timeout_s": 10.0,
+      "startup_timeout_s": 120.0,
+      "accept_threshold": 0.5,
+      "concurrency": 4
+    }
+  },
+  "items": [
+    {
+      "id": "number-001",
+      "type": "number",
+      "gold": "42",
+      "prompt": "6 x 7?"
+    },
+    {
+      "id": "mc-001",
+      "type": "mc",
+      "gold": "B",
+      "prompt": "2 + 2?",
+      "choices": [
+        "3",
+        "4",
+        "5",
+        "6"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::identity",
+        "item_id": "number-001",
+        "response": "42",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::ws.trailing-space",
+        "item_id": "number-001",
+        "response": "42 ",
+        "ops": [
+          "ws.trailing-space"
+        ],
+        "category": "whitespace",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "appended a space",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "number-001::number.plus-one",
+        "item_id": "number-001",
+        "response": "43",
+        "ops": [
+          "number.plus-one"
+        ],
+        "category": "near-miss",
+        "certificate": {
+          "claim": "different",
+          "method": "cas",
+          "reason": "43 != 42",
+          "evidence": {
+            "gold_value": "42",
+            "case_value": "43"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "mc-001::identity",
+        "item_id": "mc-001",
+        "response": "B",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "mc-001::mc.hedge-next",
+        "item_id": "mc-001",
+        "response": "B or C",
+        "ops": [
+          "mc.hedge-next"
+        ],
+        "category": "hedge",
+        "certificate": {
+          "claim": "different",
+          "method": "construction",
+          "reason": "names two options, so it commits to no single answer",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::latex.boxed+ws.trailing-space",
+        "item_id": "number-001",
+        "response": "\\boxed{42} ",
+        "ops": [
+          "latex.boxed",
+          "ws.trailing-space"
+        ],
+        "category": "latex-wrapper",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "wrapped in \\boxed{}, then appended a space",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "search",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::latex.boxed",
+        "item_id": "number-001",
+        "response": "\\boxed{42}",
+        "ops": [
+          "latex.boxed"
+        ],
+        "category": "latex-wrapper",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "wrapped in \\boxed{}",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "minimize",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::ws.trailing-space",
+        "item_id": "number-001",
+        "response": "42 ",
+        "ops": [
+          "ws.trailing-space"
+        ],
+        "category": "whitespace",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "appended a space",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "minimize",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::identity",
+        "item_id": "number-001",
+        "response": "42",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "fault",
+      "fault": "repeat",
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "false-negative:number-001::ws.trailing-space",
+      "kind": "false-negative",
+      "case": {
+        "kind": "variant",
+        "id": "number-001::ws.trailing-space",
+        "item_id": "number-001",
+        "response": "42 ",
+        "ops": [
+          "ws.trailing-space"
+        ],
+        "category": "whitespace",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "appended a space",
+          "evidence": {}
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": null,
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "false-positive:number-001::number.plus-one",
+      "kind": "false-positive",
+      "case": {
+        "kind": "mutant",
+        "id": "number-001::number.plus-one",
+        "item_id": "number-001",
+        "response": "43",
+        "ops": [
+          "number.plus-one"
+        ],
+        "category": "near-miss",
+        "certificate": {
+          "claim": "different",
+          "method": "cas",
+          "reason": "43 != 42",
+          "evidence": {
+            "gold_value": "42",
+            "case_value": "43"
+          }
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": null,
+      "fault": null,
+      "minimized": null,
+      "minimized_verdict": null
+    },
+    {
+      "id": "false-negative:number-001::latex.boxed+ws.trailing-space",
+      "kind": "false-negative",
+      "case": {
+        "kind": "variant",
+        "id": "number-001::latex.boxed+ws.trailing-space",
+        "item_id": "number-001",
+        "response": "\\boxed{42} ",
+        "ops": [
+          "latex.boxed",
+          "ws.trailing-space"
+        ],
+        "category": "latex-wrapper",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "wrapped in \\boxed{}, then appended a space",
+          "evidence": {}
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": null,
+      "minimized": {
+        "kind": "variant",
+        "id": "number-001::ws.trailing-space",
+        "item_id": "number-001",
+        "response": "42 ",
+        "ops": [
+          "ws.trailing-space"
+        ],
+        "category": "whitespace",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "appended a space",
+          "evidence": {}
+        }
+      },
+      "minimized_verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      }
+    },
+    {
+      "id": "fault:number-001::identity@repeat",
+      "kind": "fault",
+      "case": {
+        "kind": "variant",
+        "id": "number-001::identity",
+        "item_id": "number-001",
+        "response": "42",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "observed": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "reference": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "fault": "repeat",
+      "minimized": null,
+      "minimized_verdict": null
+    }
+  ],
+  "summary": {
+    "items": 2,
+    "cases": 5,
+    "calls": 9,
+    "errors": 0,
+    "not_evaluable": 0,
+    "self_validation": {
+      "k": 2,
+      "n": 2,
+      "value": 1.0,
+      "low": 0.34238022750665303,
+      "high": 1.0
+    },
+    "fn": {
+      "k": 1,
+      "n": 1,
+      "value": 1.0,
+      "low": 0.20654931437723745,
+      "high": 1.0
+    },
+    "fp": {
+      "k": 1,
+      "n": 2,
+      "value": 0.5,
+      "low": 0.09453120573423074,
+      "high": 0.9054687942657693
+    },
+    "fault": {
+      "k": 1,
+      "n": 1,
+      "value": 1.0,
+      "low": 0.20654931437723745,
+      "high": 1.0
+    },
+    "by_category": [
+      {
+        "category": "whitespace",
+        "kind": "false-negative",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "near-miss",
+        "kind": "false-positive",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      },
+      {
+        "category": "hedge",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      }
+    ],
+    "by_fault": [
+      {
+        "mode": "repeat",
+        "k": 1,
+        "n": 1,
+        "value": 1.0,
+        "low": 0.20654931437723745,
+        "high": 1.0
+      }
+    ],
+    "pattern": [
+      {
+        "kind": "false-negative",
+        "category": "whitespace",
+        "count": 2,
+        "share": 1.0
+      },
+      {
+        "kind": "false-positive",
+        "category": "near-miss",
+        "count": 1,
+        "share": 1.0
+      }
+    ]
+  }
+}

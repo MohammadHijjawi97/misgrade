@@ -1,0 +1,740 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "misgrade",
+          "version": "0.0.0-test",
+          "informationUri": "https://github.com/MohammadHijjawi97/misgrade",
+          "rules": [
+            {
+              "id": "false-negative/unicode-form",
+              "name": "FalseNegativeUnicodeForm",
+              "shortDescription": {
+                "text": "false-negative (unicode-form): Normalize Unicode before comparing"
+              },
+              "fullDescription": {
+                "text": "A Unicode spelling with the same meaning (U+2212 MINUS SIGN, a no-break space, full-width digits) was rejected."
+              },
+              "help": {
+                "text": "Normalize Unicode before comparing. A Unicode spelling with the same meaning (U+2212 MINUS SIGN, a no-break space, full-width digits) was rejected.\n1. Apply NFKC normalization (it maps full-width forms and no-break spaces).\n2. Map U+2212 MINUS SIGN to '-' (NFKC does not).",
+                "markdown": "**Normalize Unicode before comparing**\n\nA Unicode spelling with the same meaning (U+2212 MINUS SIGN, a no-break space, full-width digits) was rejected.\n\n1. Apply NFKC normalization (it maps full-width forms and no-break spaces).\n2. Map U+2212 MINUS SIGN to '-' (NFKC does not).\n\n```python\nimport unicodedata\n\n\ndef normalize_unicode(text: str) -> str:\n    return unicodedata.normalize(\"NFKC\", text).replace(\"\\u2212\", \"-\")\n```\n"
+              },
+              "helpUri": "https://github.com/MohammadHijjawi97/misgrade/blob/main/docs/card.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "misgrade",
+                  "false-negative",
+                  "unicode-form"
+                ]
+              }
+            },
+            {
+              "id": "false-positive/near-miss",
+              "name": "FalsePositiveNearMiss",
+              "shortDescription": {
+                "text": "false-positive (near-miss): Compare exact values; keep any tolerance tighter than a meaningful difference"
+              },
+              "fullDescription": {
+                "text": "A close but wrong answer was accepted: off by one, a factor of 10, a flipped sign, one changed digit, wrong rounding, the adjacent option, an open instead of a closed endpoint. Tolerances, substring or prefix matches and comparisons of absolute values do this, and RL finds such gaps fast."
+              },
+              "help": {
+                "text": "Compare exact values; keep any tolerance tighter than a meaningful difference. A close but wrong answer was accepted: off by one, a factor of 10, a flipped sign, one changed digit, wrong rounding, the adjacent option, an open instead of a closed endpoint. Tolerances, substring or prefix matches and comparisons of absolute values do this, and RL finds such gaps fast.\n1. Compare exact answers exactly (fractions.Fraction or a CAS).\n2. If a tolerance is needed, make it relative and smaller than the precision the gold is given to.\n3. Never accept by substring or prefix ('42' in '421', '3.1'.startswith('3')).\n4. Compare signs, interval endpoint types and every set element explicitly.",
+                "markdown": "**Compare exact values; keep any tolerance tighter than a meaningful difference**\n\nA close but wrong answer was accepted: off by one, a factor of 10, a flipped sign, one changed digit, wrong rounding, the adjacent option, an open instead of a closed endpoint. Tolerances, substring or prefix matches and comparisons of absolute values do this, and RL finds such gaps fast.\n\n1. Compare exact answers exactly (fractions.Fraction or a CAS).\n2. If a tolerance is needed, make it relative and smaller than the precision the gold is given to.\n3. Never accept by substring or prefix ('42' in '421', '3.1'.startswith('3')).\n4. Compare signs, interval endpoint types and every set element explicitly.\n\n```python\nimport math\n\n\ndef same_value(a: float, b: float) -> bool:\n    return math.isclose(a, b, rel_tol=1e-9, abs_tol=0.0)\n```\n"
+              },
+              "helpUri": "https://github.com/MohammadHijjawi97/misgrade/blob/main/docs/card.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "misgrade",
+                  "false-positive",
+                  "near-miss"
+                ]
+              }
+            },
+            {
+              "id": "false-positive/hedge",
+              "name": "FalsePositiveHedge",
+              "shortDescription": {
+                "text": "false-positive (hedge): Reject responses that give more than one candidate"
+              },
+              "fullDescription": {
+                "text": "A response that names several candidates ('A or B', every option) was accepted. A policy trained on this reward learns to list everything."
+              },
+              "help": {
+                "text": "Reject responses that give more than one candidate. A response that names several candidates ('A or B', every option) was accepted. A policy trained on this reward learns to list everything.\n1. Extract every candidate answer and accept only when exactly one is found and it is the gold.\n2. For multiple choice, count distinct standalone labels in the answer part.",
+                "markdown": "**Reject responses that give more than one candidate**\n\nA response that names several candidates ('A or B', every option) was accepted. A policy trained on this reward learns to list everything.\n\n1. Extract every candidate answer and accept only when exactly one is found and it is the gold.\n2. For multiple choice, count distinct standalone labels in the answer part.\n\n```python\nimport re\n\n\ndef labels_named(text: str, labels: str = \"ABCD\") -> set[str]:\n    return set(re.findall(rf\"(?<![A-Za-z])[{labels}](?![A-Za-z])\", text))\n\n\ndef grade_choice(response: str, gold: str) -> float:\n    return float(labels_named(response) == {gold})\n```\n"
+              },
+              "helpUri": "https://github.com/MohammadHijjawi97/misgrade/blob/main/docs/card.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "misgrade",
+                  "false-positive",
+                  "hedge"
+                ]
+              }
+            },
+            {
+              "id": "self-validation/identity",
+              "name": "SelfValidationIdentity",
+              "shortDescription": {
+                "text": "self-validation (identity): Make the grader accept the gold answer itself"
+              },
+              "fullDescription": {
+                "text": "The gold answer, written in the response template, was rejected. Every other variant of that item is then not evaluable, and a reward function that rejects correct answers trains a model away from them."
+              },
+              "help": {
+                "text": "Make the grader accept the gold answer itself. The gold answer, written in the response template, was rejected. Every other variant of that item is then not evaluable, and a reward function that rejects correct answers trains a model away from them.\n1. Check the answer extraction against the exact response template: an extractor that expects \\boxed{} or '####' rejects a plain answer.\n2. Normalize the gold and the extracted answer with the same function before comparing them.\n3. If the template is not the one your grader's contract expects, re-run misgrade with --template (boxed, gsm8k, answer-tag, final-answer, or your own with {answer}).",
+                "markdown": "**Make the grader accept the gold answer itself**\n\nThe gold answer, written in the response template, was rejected. Every other variant of that item is then not evaluable, and a reward function that rejects correct answers trains a model away from them.\n\n1. Check the answer extraction against the exact response template: an extractor that expects \\boxed{} or '####' rejects a plain answer.\n2. Normalize the gold and the extracted answer with the same function before comparing them.\n3. If the template is not the one your grader's contract expects, re-run misgrade with --template (boxed, gsm8k, answer-tag, final-answer, or your own with {answer}).\n\n```python\ndef grade(response: str, gold: str) -> float:\n    answer = extract_answer(response)\n    if answer is None:\n        return 0.0\n    return float(normalize(answer) == normalize(gold))  # one normalizer, both sides\n```\n"
+              },
+              "helpUri": "https://github.com/MohammadHijjawi97/misgrade/blob/main/docs/card.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "misgrade",
+                  "self-validation",
+                  "identity"
+                ]
+              }
+            },
+            {
+              "id": "fault/worker-death",
+              "name": "FaultWorkerDeath",
+              "shortDescription": {
+                "text": "fault (worker-death): Replace dead workers instead of scoring every later call 0"
+              },
+              "fullDescription": {
+                "text": "After a process the grader uses was killed, verdicts changed. This is the verl#8011 class: after one math_verify worker dies, every later correct answer scores 0, and training continues on a reward that is silently wrong."
+              },
+              "help": {
+                "text": "Replace dead workers instead of scoring every later call 0. After a process the grader uses was killed, verdicts changed. This is the verl#8011 class: after one math_verify worker dies, every later correct answer scores 0, and training continues on a reward that is silently wrong.\n1. Catch BrokenProcessPool (or your framework's equivalent), recreate the pool and retry the call once.\n2. Fail loudly if workers keep dying, instead of returning a default score.",
+                "markdown": "**Replace dead workers instead of scoring every later call 0**\n\nAfter a process the grader uses was killed, verdicts changed. This is the verl#8011 class: after one math_verify worker dies, every later correct answer scores 0, and training continues on a reward that is silently wrong.\n\n1. Catch BrokenProcessPool (or your framework's equivalent), recreate the pool and retry the call once.\n2. Fail loudly if workers keep dying, instead of returning a default score.\n\n```python\nfrom concurrent.futures import ProcessPoolExecutor\nfrom concurrent.futures.process import BrokenProcessPool\n\n\nclass PooledGrader:\n    def __init__(self) -> None:\n        self.pool = ProcessPoolExecutor(max_workers=1)\n\n    def __call__(self, response: str, gold: str) -> float:\n        try:\n            return self.pool.submit(grade, response, gold).result(timeout=10)\n        except BrokenProcessPool:\n            self.pool = ProcessPoolExecutor(max_workers=1)  # replace, retry once\n            return self.pool.submit(grade, response, gold).result(timeout=10)\n```\n"
+              },
+              "helpUri": "https://github.com/MohammadHijjawi97/misgrade/blob/main/docs/card.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "misgrade",
+                  "fault",
+                  "worker-death"
+                ]
+              }
+            },
+            {
+              "id": "fault/timeout",
+              "name": "FaultTimeout",
+              "shortDescription": {
+                "text": "fault (timeout): Leave the grader usable after a timeout"
+              },
+              "fullDescription": {
+                "text": "After one call hit the timeout, earlier cases were graded differently: the timeout left the grader broken (an alarm still armed, a half-built cache, a pool with a hung worker)."
+              },
+              "help": {
+                "text": "Leave the grader usable after a timeout. After one call hit the timeout, earlier cases were graded differently: the timeout left the grader broken (an alarm still armed, a half-built cache, a pool with a hung worker).\n1. Restore state in a finally block when a call is interrupted.\n2. Recreate worker pools after a timeout instead of reusing them.",
+                "markdown": "**Leave the grader usable after a timeout**\n\nAfter one call hit the timeout, earlier cases were graded differently: the timeout left the grader broken (an alarm still armed, a half-built cache, a pool with a hung worker).\n\n1. Restore state in a finally block when a call is interrupted.\n2. Recreate worker pools after a timeout instead of reusing them.\n"
+              },
+              "helpUri": "https://github.com/MohammadHijjawi97/misgrade/blob/main/docs/card.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "misgrade",
+                  "fault",
+                  "timeout"
+                ]
+              }
+            },
+            {
+              "id": "fault/repeat",
+              "name": "FaultRepeat",
+              "shortDescription": {
+                "text": "fault (repeat): Make the grader stateless between calls"
+              },
+              "fullDescription": {
+                "text": "Grading the same case again in the same process gave a different verdict: the grader keeps state between calls (a cache keyed on something unstable, a global counter, a mutated default argument)."
+              },
+              "help": {
+                "text": "Make the grader stateless between calls. Grading the same case again in the same process gave a different verdict: the grader keeps state between calls (a cache keyed on something unstable, a global counter, a mutated default argument).\n1. Remove module-level mutable state from the grading path.\n2. Cache only pure functions, keyed by their whole input.\n3. Derive any randomness from the input, never from a global generator.",
+                "markdown": "**Make the grader stateless between calls**\n\nGrading the same case again in the same process gave a different verdict: the grader keeps state between calls (a cache keyed on something unstable, a global counter, a mutated default argument).\n\n1. Remove module-level mutable state from the grading path.\n2. Cache only pure functions, keyed by their whole input.\n3. Derive any randomness from the input, never from a global generator.\n"
+              },
+              "helpUri": "https://github.com/MohammadHijjawi97/misgrade/blob/main/docs/card.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "misgrade",
+                  "fault",
+                  "repeat"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "automationDetails": {
+        "id": "misgrade/my \"grader\" <v2>/"
+      },
+      "results": [
+        {
+          "ruleId": "false-negative/unicode-form",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "The grader rejected a response certified equivalent to the gold (unicode-form), although it accepted the gold itself. Response \"\\\\boxed{\\u22121000}\" for gold \"-1000\" (item number-007): expected accept, observed reject (score 0). Certificate (cas): sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "false-negative:number-007::sep.comma+unicode.minus+phrase.the-answer-is"
+          },
+          "properties": {
+            "findingId": "false-negative:number-007::sep.comma+unicode.minus+phrase.the-answer-is",
+            "kind": "false-negative",
+            "fault": null,
+            "caseId": "number-007::sep.comma+unicode.minus+phrase.the-answer-is",
+            "shownCaseId": "number-007::unicode.minus",
+            "category": "unicode-form",
+            "itemId": "number-007",
+            "answerType": "number",
+            "ops": [
+              "unicode.minus"
+            ],
+            "response": "\\boxed{−1000}",
+            "gold": "-1000",
+            "expected": "accept",
+            "observed": "reject",
+            "score": 0.0,
+            "certificate": {
+              "claim": "equivalent",
+              "method": "cas",
+              "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+              "evidence": {
+                "sympy": "1.14.0",
+                "value": "-1000"
+              }
+            }
+          }
+        },
+        {
+          "ruleId": "false-negative/unicode-form",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "The grader rejected a response certified equivalent to the gold (unicode-form), although it accepted the gold itself. Response \"\\\\boxed{\\u22121000}\" for gold \"-1000\" (item number-007): expected accept, observed reject (score 0). Certificate (cas): sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "false-negative:number-007::unicode.minus"
+          },
+          "properties": {
+            "findingId": "false-negative:number-007::unicode.minus",
+            "kind": "false-negative",
+            "fault": null,
+            "caseId": "number-007::unicode.minus",
+            "shownCaseId": "number-007::unicode.minus",
+            "category": "unicode-form",
+            "itemId": "number-007",
+            "answerType": "number",
+            "ops": [
+              "unicode.minus"
+            ],
+            "response": "\\boxed{−1000}",
+            "gold": "-1000",
+            "expected": "accept",
+            "observed": "reject",
+            "score": 0.0,
+            "certificate": {
+              "claim": "equivalent",
+              "method": "cas",
+              "reason": "sympy: <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!-- equals the gold",
+              "evidence": {
+                "sympy": "1.14.0",
+                "value": "-1000"
+              }
+            }
+          }
+        },
+        {
+          "ruleId": "false-positive/near-miss",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "The grader accepted a response certified different from the gold (near-miss). Response \"\\\\boxed{-999} <script>alert(\\\"x\\\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\\\boxed{1} [bold]markup[/bold] & --> <!--\\x07\\U0001f600\" for gold \"-1000\" (item number-007): expected reject, observed accept (score 1). Certificate (structural): names two options | so it commits to no single answer"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "false-positive:number-007::near.plus-one"
+          },
+          "properties": {
+            "findingId": "false-positive:number-007::near.plus-one",
+            "kind": "false-positive",
+            "fault": null,
+            "caseId": "number-007::near.plus-one",
+            "shownCaseId": "number-007::near.plus-one",
+            "category": "near-miss",
+            "itemId": "number-007",
+            "answerType": "number",
+            "ops": [
+              "near.plus-one"
+            ],
+            "response": "\\boxed{-999} <script>alert(\"x\")</script> ]]> `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] & --> <!--\u0007😀",
+            "gold": "-1000",
+            "expected": "reject",
+            "observed": "accept",
+            "score": 1.0,
+            "certificate": {
+              "claim": "different",
+              "method": "structural",
+              "reason": "names two options | so it commits to no single answer",
+              "evidence": {
+                "labels": "A, B"
+              }
+            }
+          }
+        },
+        {
+          "ruleId": "false-positive/hedge",
+          "ruleIndex": 2,
+          "level": "error",
+          "message": {
+            "text": "The grader accepted a response certified different from the gold (hedge). Response \"\\\\boxed{A or B}\" for gold \"B\" (item mc-003): expected reject, observed accept (score 0.75). Certificate (structural): names two options | so it commits to no single answer"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "false-positive:mc-003::mc.hedge-prev"
+          },
+          "properties": {
+            "findingId": "false-positive:mc-003::mc.hedge-prev",
+            "kind": "false-positive",
+            "fault": null,
+            "caseId": "mc-003::mc.hedge-prev",
+            "shownCaseId": "mc-003::mc.hedge-prev",
+            "category": "hedge",
+            "itemId": "mc-003",
+            "answerType": "mc",
+            "ops": [
+              "mc.hedge-prev"
+            ],
+            "response": "\\boxed{A or B}",
+            "gold": "B",
+            "expected": "reject",
+            "observed": "accept",
+            "score": 0.75,
+            "certificate": {
+              "claim": "different",
+              "method": "structural",
+              "reason": "names two options | so it commits to no single answer",
+              "evidence": {
+                "labels": "A, B"
+              }
+            }
+          }
+        },
+        {
+          "ruleId": "self-validation/identity",
+          "ruleIndex": 3,
+          "level": "error",
+          "message": {
+            "text": "The grader rejected the gold answer graded against itself. Response \"\\\\boxed{say \\\"hi\\\"}\" for gold \"say \\\"hi\\\"\" (item string-002): expected accept, observed reject (score 0). Certificate (construction): the response is the gold answer itself"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "self-validation:string-002::identity"
+          },
+          "properties": {
+            "findingId": "self-validation:string-002::identity",
+            "kind": "self-validation",
+            "fault": null,
+            "caseId": "string-002::identity",
+            "shownCaseId": "string-002::identity",
+            "category": "identity",
+            "itemId": "string-002",
+            "answerType": "string",
+            "ops": [],
+            "response": "\\boxed{say \"hi\"}",
+            "gold": "say \"hi\"",
+            "expected": "accept",
+            "observed": "reject",
+            "score": 0.0,
+            "certificate": {
+              "claim": "equivalent",
+              "method": "construction",
+              "reason": "the response is the gold answer itself",
+              "evidence": {}
+            }
+          }
+        },
+        {
+          "ruleId": "fault/worker-death",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "Under the worker-death fault check the verdict changed from the clean run (expected accept, observed crash). Response \"\\\\boxed{-1000}\" for gold \"-1000\" (item number-007): expected accept, observed crash: worker exited with code -9. Certificate (construction): the response is the gold answer itself"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "fault:number-007::identity@worker-death"
+          },
+          "properties": {
+            "findingId": "fault:number-007::identity@worker-death",
+            "kind": "fault",
+            "fault": "worker-death",
+            "caseId": "number-007::identity",
+            "shownCaseId": "number-007::identity",
+            "category": "identity",
+            "itemId": "number-007",
+            "answerType": "number",
+            "ops": [],
+            "response": "\\boxed{-1000}",
+            "gold": "-1000",
+            "expected": "accept",
+            "observed": "crash",
+            "score": null,
+            "certificate": {
+              "claim": "equivalent",
+              "method": "construction",
+              "reason": "the response is the gold answer itself",
+              "evidence": {}
+            }
+          }
+        },
+        {
+          "ruleId": "fault/timeout",
+          "ruleIndex": 5,
+          "level": "error",
+          "message": {
+            "text": "Under the timeout fault check the verdict changed from the clean run (expected accept, observed error). Response \"\\\\boxed{B}\" for gold \"B\" (item mc-003): expected accept, observed error: ValueError: bad \"input\" <here>\u0000. Certificate (construction): the response is the gold answer itself"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "fault:mc-003::identity@timeout"
+          },
+          "properties": {
+            "findingId": "fault:mc-003::identity@timeout",
+            "kind": "fault",
+            "fault": "timeout",
+            "caseId": "mc-003::identity",
+            "shownCaseId": "mc-003::identity",
+            "category": "identity",
+            "itemId": "mc-003",
+            "answerType": "mc",
+            "ops": [],
+            "response": "\\boxed{B}",
+            "gold": "B",
+            "expected": "accept",
+            "observed": "error",
+            "score": null,
+            "certificate": {
+              "claim": "equivalent",
+              "method": "construction",
+              "reason": "the response is the gold answer itself",
+              "evidence": {}
+            }
+          }
+        },
+        {
+          "ruleId": "fault/repeat",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Under the repeat fault check the verdict changed from the clean run (expected accept, observed reject). Response \"\\\\boxed{-1000}\" for gold \"-1000\" (item number-007): expected accept, observed reject (score 0). Certificate (construction): the response is the gold answer itself"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Me/rewards/math%20rewards.py"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "misgradeFinding/v1": "fault:number-007::identity@repeat"
+          },
+          "properties": {
+            "findingId": "fault:number-007::identity@repeat",
+            "kind": "fault",
+            "fault": "repeat",
+            "caseId": "number-007::identity",
+            "shownCaseId": "number-007::identity",
+            "category": "identity",
+            "itemId": "number-007",
+            "answerType": "number",
+            "ops": [],
+            "response": "\\boxed{-1000}",
+            "gold": "-1000",
+            "expected": "accept",
+            "observed": "reject",
+            "score": 0.0,
+            "certificate": {
+              "claim": "equivalent",
+              "method": "construction",
+              "reason": "the response is the gold answer itself",
+              "evidence": {}
+            }
+          }
+        }
+      ],
+      "properties": {
+        "grader": {
+          "name": "my \"grader\" <v2>",
+          "adapter": "verl",
+          "target": "C:\\Users\\Me\\rewards\\math rewards.py:compute_score",
+          "source": "C:\\Users\\Me\\rewards\\math rewards.py:42",
+          "versions": {
+            "sympy": "1.14.0",
+            "math-verify": "0.8.0"
+          }
+        },
+        "summary": {
+          "items": 3,
+          "cases": 10,
+          "calls": 20,
+          "errors": 6,
+          "not_evaluable": 1,
+          "self_validation": {
+            "k": 2,
+            "n": 3,
+            "value": 0.6666666666666666,
+            "low": 0.2076596008020477,
+            "high": 0.9385080552796037
+          },
+          "fn": {
+            "k": 1,
+            "n": 2,
+            "value": 0.5,
+            "low": 0.09453120573423074,
+            "high": 0.9054687942657693
+          },
+          "fp": {
+            "k": 2,
+            "n": 2,
+            "value": 1.0,
+            "low": 0.34238022750665303,
+            "high": 1.0
+          },
+          "fault": {
+            "k": 3,
+            "n": 4,
+            "value": 0.75,
+            "low": 0.30064184258240184,
+            "high": 0.9544127391902995
+          },
+          "by_category": [
+            {
+              "category": "whitespace",
+              "kind": "false-negative",
+              "k": 0,
+              "n": 0,
+              "value": null,
+              "low": 0.0,
+              "high": 1.0
+            },
+            {
+              "category": "thousands-separator",
+              "kind": "false-negative",
+              "k": 0,
+              "n": 1,
+              "value": 0.0,
+              "low": 0.0,
+              "high": 0.7934506856227626
+            },
+            {
+              "category": "unicode-form",
+              "kind": "false-negative",
+              "k": 1,
+              "n": 1,
+              "value": 1.0,
+              "low": 0.20654931437723745,
+              "high": 1.0
+            },
+            {
+              "category": "mc-form",
+              "kind": "false-negative",
+              "k": 0,
+              "n": 0,
+              "value": null,
+              "low": 0.0,
+              "high": 1.0
+            },
+            {
+              "category": "near-miss",
+              "kind": "false-positive",
+              "k": 1,
+              "n": 1,
+              "value": 1.0,
+              "low": 0.20654931437723745,
+              "high": 1.0
+            },
+            {
+              "category": "hedge",
+              "kind": "false-positive",
+              "k": 1,
+              "n": 1,
+              "value": 1.0,
+              "low": 0.20654931437723745,
+              "high": 1.0
+            },
+            {
+              "category": "pathological",
+              "kind": "false-positive",
+              "k": 0,
+              "n": 0,
+              "value": null,
+              "low": 0.0,
+              "high": 1.0
+            }
+          ],
+          "by_fault": [
+            {
+              "mode": "repeat",
+              "k": 1,
+              "n": 1,
+              "value": 1.0,
+              "low": 0.20654931437723745,
+              "high": 1.0
+            },
+            {
+              "mode": "timeout",
+              "k": 1,
+              "n": 1,
+              "value": 1.0,
+              "low": 0.20654931437723745,
+              "high": 1.0
+            },
+            {
+              "mode": "worker-death",
+              "k": 1,
+              "n": 2,
+              "value": 0.5,
+              "low": 0.09453120573423074,
+              "high": 0.9054687942657693
+            }
+          ],
+          "pattern": [
+            {
+              "kind": "false-negative",
+              "category": "unicode-form",
+              "count": 2,
+              "share": 1.0
+            },
+            {
+              "kind": "false-positive",
+              "category": "near-miss",
+              "count": 1,
+              "share": 0.5
+            },
+            {
+              "kind": "false-positive",
+              "category": "hedge",
+              "count": 1,
+              "share": 0.5
+            },
+            {
+              "kind": "self-validation",
+              "category": "identity",
+              "count": 1,
+              "share": 1.0
+            }
+          ]
+        },
+        "startedAt": "2026-02-03T04:05:06+00:00"
+      }
+    }
+  ]
+}

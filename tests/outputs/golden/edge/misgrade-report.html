@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="misgrade 0.0.0-test">
+<title>misgrade report: my &quot;grader&quot; &lt;v2&gt;</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --surface: #f6f8fa; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
+  --accent: #0969da; --bad: #cf222e; --bad-bg: #ffebe9; --warn: #9a6700; --warn-bg: #fff8c5;
+  --ok: #1a7f37; --code-bg: #eff2f5; --range: #8c959f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --surface: #151b23; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d;
+    --accent: #4493f8; --bad: #ff7b72; --bad-bg: #3a1d1f; --warn: #d29922; --warn-bg: #352a0f;
+    --ok: #3fb950; --code-bg: #212830; --range: #6e7681;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+}
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px 16px 48px; }
+a { color: var(--accent); }
+h1 { font-size: 1.8rem; line-height: 1.2; margin: .2rem 0 .6rem; overflow-wrap: anywhere; }
+h2 {
+  font-size: 1.25rem; margin: 2.6rem 0 .8rem; padding-bottom: .35rem;
+  border-bottom: 1px solid var(--border);
+}
+h3 { font-size: 1.02rem; margin: 1.6rem 0 .5rem; }
+p { margin: .5rem 0; }
+.eyebrow {
+  color: var(--muted); font-size: .8rem; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; margin: 0;
+}
+.meta { color: var(--muted); margin: .15rem 0; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
+code, pre {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: .87em;
+}
+code {
+  background: var(--code-bg); padding: .1em .35em; border-radius: 4px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+pre {
+  background: var(--code-bg); padding: 12px 14px; border-radius: 6px; overflow-x: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere; margin: .5rem 0;
+}
+.tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px;
+  margin: 22px 0 14px;
+}
+.tile {
+  background: var(--surface); border: 1px solid var(--border); border-left-width: 4px;
+  border-radius: 8px; padding: 14px 16px;
+}
+.tile.bad { border-left-color: var(--bad); }
+.tile.warn { border-left-color: var(--warn); }
+.tile.ok { border-left-color: var(--ok); }
+.tile .label {
+  color: var(--muted); font-size: .8rem; font-weight: 600; letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.tile .count {
+  font-size: 1.9rem; font-weight: 650; line-height: 1.2; margin-top: .25rem;
+  font-variant-numeric: tabular-nums;
+}
+.tile .what { color: var(--muted); font-size: .9rem; }
+.tile .detail { font-size: .9rem; margin-top: .45rem; font-variant-numeric: tabular-nums; }
+.note {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 16px; color: var(--muted); font-size: .92rem;
+}
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td {
+  text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+th {
+  color: var(--muted); font-size: .78rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; white-space: nowrap;
+}
+th.num, td.num { text-align: right; white-space: nowrap; }
+td.wide { width: 40%; min-width: 90px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.ci {
+  position: relative; display: inline-block; width: 150px; max-width: 40vw; height: 12px;
+  background: var(--code-bg); border-radius: 6px; vertical-align: middle;
+}
+.ci-range {
+  position: absolute; top: 3px; height: 6px; min-width: 2px; background: var(--range);
+  border-radius: 3px;
+}
+.ci-point {
+  position: absolute; top: 0; width: 3px; height: 12px; margin-left: -1px;
+  background: var(--fg); border-radius: 1px;
+}
+.share {
+  display: inline-block; height: 10px; min-width: 2px; background: var(--accent);
+  border-radius: 3px; vertical-align: middle;
+}
+.pill {
+  display: inline-block; font-size: .76rem; font-weight: 600; padding: .1em .6em;
+  border-radius: 999px; white-space: nowrap; background: var(--code-bg); color: var(--fg);
+}
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+details.finding {
+  border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; background: var(--bg);
+}
+details.finding > summary {
+  cursor: pointer; padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px 10px;
+  align-items: baseline;
+}
+details.finding[open] > summary { border-bottom: 1px solid var(--border); }
+.kv {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 16px;
+  margin: 0; padding: 12px 14px 14px;
+}
+.kv dt { color: var(--muted); font-size: .88rem; }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.kv dd.text { white-space: pre-wrap; }
+.kv ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+.advice ol { padding-left: 1.3rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; }
+@media (max-width: 600px) {
+  h1 { font-size: 1.45rem; }
+  .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .kv dt { margin-top: 8px; }
+  .ci { width: 90px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<p class="eyebrow">misgrade audit report</p>
+<h1>my &quot;grader&quot; &lt;v2&gt;</h1>
+<p class="meta">verl adapter · target <code>C:\Users\Me\rewards\math rewards.py:compute_score</code> · source <code>C:\Users\Me\rewards\math rewards.py:42</code></p>
+<p class="meta">libraries that decide verdicts: sympy 1.14.0, math-verify 0.8.0</p>
+<p class="meta">started 2026-02-03T04:05:06+00:00 · 12.50 s · seed 7 · budget 40 · template <code>\boxed{{answer}}</code></p>
+</header>
+<main>
+<section class="tiles" aria-label="headline rates">
+<div class="tile bad">
+<div class="label">Self-validation</div>
+<div class="count">2 <span class="muted">/ 3</span></div>
+<div class="what">gold answers accepted as themselves</div>
+<div class="detail">66.7% · 95% CI 20.8% to 93.9%<br><span class="ci" role="img" aria-label="95% interval 20.8% to 93.9%"><span class="ci-range" style="left:20.8%;width:73.1%"></span><span class="ci-point" style="left:66.7%"></span></span></div>
+</div>
+<div class="tile bad">
+<div class="label">False positives</div>
+<div class="count">2 <span class="muted">/ 2</span></div>
+<div class="what">wrong answers accepted</div>
+<div class="detail">100.0% · 95% CI 34.2% to 100.0%<br><span class="ci" role="img" aria-label="95% interval 34.2% to 100.0%"><span class="ci-range" style="left:34.2%;width:65.8%"></span><span class="ci-point" style="left:100.0%"></span></span></div>
+</div>
+<div class="tile warn">
+<div class="label">False negatives</div>
+<div class="count">1 <span class="muted">/ 2</span></div>
+<div class="what">equivalent answers rejected</div>
+<div class="detail">50.0% · 95% CI 9.5% to 90.5%<br><span class="ci" role="img" aria-label="95% interval 9.5% to 90.5%"><span class="ci-range" style="left:9.5%;width:81.1%"></span><span class="ci-point" style="left:50.0%"></span></span></div>
+</div>
+<div class="tile bad">
+<div class="label">Fault checks</div>
+<div class="count">3 <span class="muted">/ 4</span></div>
+<div class="what">verdicts changed under runtime faults</div>
+<div class="detail">75.0% · 95% CI 30.1% to 95.4%<br><span class="ci" role="img" aria-label="95% interval 30.1% to 95.4%"><span class="ci-range" style="left:30.1%;width:65.4%"></span><span class="ci-point" style="left:75.0%"></span></span></div>
+</div>
+</section>
+<p class="note">
+A <strong>finding</strong> is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Certificates are established by construction, a computer algebra system or a structural comparison, never by the grader under test. Rates count the main phase only (10 single-operator cases on 3 items, 20 grader calls in all). This report says what was tried and observed; it does not say the grader is correct.
+<br>6 of 20 grader calls ended without a score (error, timeout or crash) and are in no rate&#x27;s denominator.
+<br>1 variants were not evaluable: the gold answer of their item was not accepted.
+</p>
+<section id="categories">
+<h2>Rates by category</h2>
+<p class="muted">Variant categories: equivalent answers rejected (false negatives); mutant categories: wrong answers accepted (false positives). Surface variants change only the text around the answer; notation variants write the same value another standard way.</p>
+<div class="scroll"><table>
+<thead><tr><th>Category</th><th>Kind</th><th>Tier</th><th class="num">Findings / cases</th><th class="num">Rate</th><th>95% CI</th></tr></thead>
+<tbody>
+<tr><td>whitespace</td><td>false negative</td><td>surface</td><td class="num">0 / 0</td><td class="num"></td><td><span class="muted">not measured</span></td></tr>
+<tr><td>thousands-separator</td><td>false negative</td><td>notation</td><td class="num">0 / 1</td><td class="num">0.0%</td><td><span class="ci" role="img" aria-label="95% interval 0.0% to 79.3%"><span class="ci-range" style="left:0.0%;width:79.3%"></span><span class="ci-point" style="left:0.0%"></span></span></td></tr>
+<tr><td>unicode-form</td><td>false negative</td><td>notation</td><td class="num">1 / 1</td><td class="num">100.0%</td><td><span class="ci" role="img" aria-label="95% interval 20.7% to 100.0%"><span class="ci-range" style="left:20.7%;width:79.3%"></span><span class="ci-point" style="left:100.0%"></span></span></td></tr>
+<tr><td>mc-form</td><td>false negative</td><td>surface</td><td class="num">0 / 0</td><td class="num"></td><td><span class="muted">not measured</span></td></tr>
+<tr><td>near-miss</td><td>false positive</td><td><span class="muted">-</span></td><td class="num">1 / 1</td><td class="num">100.0%</td><td><span class="ci" role="img" aria-label="95% interval 20.7% to 100.0%"><span class="ci-range" style="left:20.7%;width:79.3%"></span><span class="ci-point" style="left:100.0%"></span></span></td></tr>
+<tr><td>hedge</td><td>false positive</td><td><span class="muted">-</span></td><td class="num">1 / 1</td><td class="num">100.0%</td><td><span class="ci" role="img" aria-label="95% interval 20.7% to 100.0%"><span class="ci-range" style="left:20.7%;width:79.3%"></span><span class="ci-point" style="left:100.0%"></span></span></td></tr>
+<tr><td>pathological</td><td>false positive</td><td><span class="muted">-</span></td><td class="num">0 / 0</td><td class="num"></td><td><span class="muted">not measured</span></td></tr>
+</tbody>
+</table></div>
+</section>
+<section id="faults">
+<h2>Fault checks</h2>
+<p class="muted">The same cases graded again under a runtime fault; a change from the clean run's verdict is a finding. Timed-out calls are no evidence either way and are not counted.</p>
+<div class="scroll"><table>
+<thead><tr><th>Fault mode</th><th class="num">Changed / compared</th><th class="num">Rate</th><th>95% CI</th></tr></thead>
+<tbody>
+<tr><td>repeat</td><td class="num">1 / 1</td><td class="num">100.0%</td><td><span class="ci" role="img" aria-label="95% interval 20.7% to 100.0%"><span class="ci-range" style="left:20.7%;width:79.3%"></span><span class="ci-point" style="left:100.0%"></span></span></td></tr>
+<tr><td>timeout</td><td class="num">1 / 1</td><td class="num">100.0%</td><td><span class="ci" role="img" aria-label="95% interval 20.7% to 100.0%"><span class="ci-range" style="left:20.7%;width:79.3%"></span><span class="ci-point" style="left:100.0%"></span></span></td></tr>
+<tr><td>worker-death</td><td class="num">1 / 2</td><td class="num">50.0%</td><td><span class="ci" role="img" aria-label="95% interval 9.5% to 90.5%"><span class="ci-range" style="left:9.5%;width:81.1%"></span><span class="ci-point" style="left:50.0%"></span></span></td></tr>
+</tbody>
+</table></div>
+</section>
+<section id="pattern">
+<h2>Error pattern</h2>
+<p class="muted">Which errors the grader makes: the share of each kind of finding per category (of the minimized case), search findings included. Which wrong answers a reward accepts matters for RL training as much as how many (arXiv 2605.02909).</p>
+<h3>False negatives</h3>
+<div class="scroll"><table>
+<thead><tr><th>Category</th><th class="num">Findings</th><th class="num">Share</th><th><span class="sr-only">Share bar</span></th></tr></thead>
+<tbody>
+<tr><td>unicode-form</td><td class="num">2</td><td class="num">100.0%</td><td class="wide"><span class="share" style="width:100.0%"></span></td></tr>
+</tbody>
+</table></div>
+<h3>False positives</h3>
+<div class="scroll"><table>
+<thead><tr><th>Category</th><th class="num">Findings</th><th class="num">Share</th><th><span class="sr-only">Share bar</span></th></tr></thead>
+<tbody>
+<tr><td>near-miss</td><td class="num">1</td><td class="num">50.0%</td><td class="wide"><span class="share" style="width:50.0%"></span></td></tr>
+<tr><td>hedge</td><td class="num">1</td><td class="num">50.0%</td><td class="wide"><span class="share" style="width:50.0%"></span></td></tr>
+</tbody>
+</table></div>
+<h3>Self-validation failures</h3>
+<div class="scroll"><table>
+<thead><tr><th>Category</th><th class="num">Findings</th><th class="num">Share</th><th><span class="sr-only">Share bar</span></th></tr></thead>
+<tbody>
+<tr><td>identity</td><td class="num">1</td><td class="num">100.0%</td><td class="wide"><span class="share" style="width:100.0%"></span></td></tr>
+</tbody>
+</table></div>
+</section>
+<section id="findings">
+<h2>Findings (8)</h2>
+<details class="finding" id="finding-1" open>
+<summary><span class="pill warn">false negative</span> <strong>unicode-form</strong> <code>number-007::unicode.minus</code> <span class="muted">expected accept, observed reject</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{\u22121000}&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+Second line	with a tab.</dd>
+<dt>Operators</dt><dd><code>unicode.minus</code></dd>
+<dt>Expected</dt><dd>accept</dd>
+<dt>Observed</dt><dd>reject (score 0)</dd>
+<dt>Certificate</dt><dd>sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold <span class="muted">(cas)</span><ul><li>sympy: <code>1.14.0</code></li><li>value: <code>-1000</code></li></ul></dd>
+<dt>Gold verdict</dt><dd>accept (score 1)</dd>
+<dt>Found as</dt><dd><code>number-007::sep.comma+unicode.minus+phrase.the-answer-is</code>: <code>&quot;The answer is \\boxed{\u22121,000}.\n&quot;</code> (observed reject (score 0)); minimized to 1 of 3 operators</dd>
+<dt>Hardening</dt><dd><a href="#advice-unicode-form">Normalize Unicode before comparing</a></dd>
+</dl>
+</details>
+<details class="finding" id="finding-2" open>
+<summary><span class="pill warn">false negative</span> <strong>unicode-form</strong> <code>number-007::unicode.minus</code> <span class="muted">expected accept, observed reject</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{\u22121000}&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+Second line	with a tab.</dd>
+<dt>Operators</dt><dd><code>unicode.minus</code></dd>
+<dt>Expected</dt><dd>accept</dd>
+<dt>Observed</dt><dd>reject (score 0)</dd>
+<dt>Certificate</dt><dd>sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold <span class="muted">(cas)</span><ul><li>sympy: <code>1.14.0</code></li><li>value: <code>-1000</code></li></ul></dd>
+<dt>Gold verdict</dt><dd>accept (score 1)</dd>
+<dt>Hardening</dt><dd><a href="#advice-unicode-form">Normalize Unicode before comparing</a></dd>
+</dl>
+</details>
+<details class="finding" id="finding-3" open>
+<summary><span class="pill bad">false positive</span> <strong>near-miss</strong> <code>number-007::near.plus-one</code> <span class="muted">expected reject, observed accept</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{-999} &lt;script&gt;alert(\&quot;x\&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--\x07\U0001f600&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+Second line	with a tab.</dd>
+<dt>Operators</dt><dd><code>near.plus-one</code></dd>
+<dt>Expected</dt><dd>reject</dd>
+<dt>Observed</dt><dd>accept (score 1)</dd>
+<dt>Certificate</dt><dd>names two options | so it commits to no single answer <span class="muted">(structural)</span><ul><li>labels: <code>A, B</code></li></ul></dd>
+<dt>Hardening</dt><dd><a href="#advice-near-miss">Compare exact values; keep any tolerance tighter than a meaningful difference</a></dd>
+</dl>
+</details>
+<details class="finding" id="finding-4" open>
+<summary><span class="pill bad">false positive</span> <strong>hedge</strong> <code>mc-003::mc.hedge-prev</code> <span class="muted">expected reject, observed accept</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{A or B}&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;B&quot;</code> <span class="muted">item mc-003, mc</span></dd>
+<dt>Prompt</dt><dd class="text">Pick one.</dd>
+<dt>Choices</dt><dd>A: a | b, B: `c`, C: &lt;d&gt;, D: été</dd>
+<dt>Operators</dt><dd><code>mc.hedge-prev</code></dd>
+<dt>Expected</dt><dd>reject</dd>
+<dt>Observed</dt><dd>accept (score 0.75)</dd>
+<dt>Certificate</dt><dd>names two options | so it commits to no single answer <span class="muted">(structural)</span><ul><li>labels: <code>A, B</code></li></ul></dd>
+<dt>Hardening</dt><dd><a href="#advice-hedge">Reject responses that give more than one candidate</a></dd>
+</dl>
+</details>
+<details class="finding" id="finding-5" open>
+<summary><span class="pill bad">self-validation failure</span> <strong>identity</strong> <code>string-002::identity</code> <span class="muted">expected accept, observed reject</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{say \&quot;hi\&quot;}&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;say \&quot;hi\&quot;&quot;</code> <span class="muted">item string-002, string</span></dd>
+<dt>Operators</dt><dd><span class="muted">none</span></dd>
+<dt>Expected</dt><dd>accept</dd>
+<dt>Observed</dt><dd>reject (score 0)</dd>
+<dt>Certificate</dt><dd>the response is the gold answer itself <span class="muted">(construction)</span></dd>
+<dt>Hardening</dt><dd><a href="#advice-identity">Make the grader accept the gold answer itself</a></dd>
+</dl>
+</details>
+<details class="finding" id="finding-6" open>
+<summary><span class="pill bad">fault · worker-death</span> <strong>identity</strong> <code>number-007::identity</code> <span class="muted">expected accept, observed crash</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{-1000}&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+Second line	with a tab.</dd>
+<dt>Operators</dt><dd><span class="muted">none</span></dd>
+<dt>Expected</dt><dd>accept</dd>
+<dt>Observed</dt><dd>crash: worker exited with code -9</dd>
+<dt>Certificate</dt><dd>the response is the gold answer itself <span class="muted">(construction)</span></dd>
+<dt>Clean run</dt><dd>accept (score 1)</dd>
+<dt>Hardening</dt><dd><a href="#advice-worker-death">Replace dead workers instead of scoring every later call 0</a></dd>
+</dl>
+</details>
+<details class="finding" id="finding-7" open>
+<summary><span class="pill bad">fault · timeout</span> <strong>identity</strong> <code>mc-003::identity</code> <span class="muted">expected accept, observed error</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{B}&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;B&quot;</code> <span class="muted">item mc-003, mc</span></dd>
+<dt>Prompt</dt><dd class="text">Pick one.</dd>
+<dt>Choices</dt><dd>A: a | b, B: `c`, C: &lt;d&gt;, D: été</dd>
+<dt>Operators</dt><dd><span class="muted">none</span></dd>
+<dt>Expected</dt><dd>accept</dd>
+<dt>Observed</dt><dd>error: ValueError: bad &quot;input&quot; &lt;here&gt; </dd>
+<dt>Certificate</dt><dd>the response is the gold answer itself <span class="muted">(construction)</span></dd>
+<dt>Clean run</dt><dd>accept (score 1)</dd>
+<dt>Hardening</dt><dd><a href="#advice-timeout">Leave the grader usable after a timeout</a></dd>
+</dl>
+</details>
+<details class="finding" id="finding-8" open>
+<summary><span class="pill bad">fault · repeat</span> <strong>identity</strong> <code>number-007::identity</code> <span class="muted">expected accept, observed reject</span></summary>
+<dl class="kv">
+<dt>Response</dt><dd><code>&quot;\\boxed{-1000}&quot;</code></dd>
+<dt>Gold</dt><dd><code>&quot;-1000&quot;</code> <span class="muted">item number-007, number</span></dd>
+<dt>Prompt</dt><dd class="text">How much? &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--
+Second line	with a tab.</dd>
+<dt>Operators</dt><dd><span class="muted">none</span></dd>
+<dt>Expected</dt><dd>accept</dd>
+<dt>Observed</dt><dd>reject (score 0)</dd>
+<dt>Certificate</dt><dd>the response is the gold answer itself <span class="muted">(construction)</span></dd>
+<dt>Clean run</dt><dd>accept (score 1)</dd>
+<dt>Hardening</dt><dd><a href="#advice-repeat">Make the grader stateless between calls</a></dd>
+</dl>
+</details>
+</section>
+<section id="hardening">
+<h2>Hardening suggestions</h2>
+<p class="muted">Changes that usually remove these findings. They are suggestions, not verified fixes: change the grader, then run the audit again with the same seed.</p>
+<div class="advice" id="advice-unicode-form">
+<h3>unicode-form: Normalize Unicode before comparing</h3>
+<p>A Unicode spelling with the same meaning (U+2212 MINUS SIGN, a no-break space, full-width digits) was rejected.</p>
+<ol><li>Apply NFKC normalization (it maps full-width forms and no-break spaces).</li><li>Map U+2212 MINUS SIGN to &#x27;-&#x27; (NFKC does not).</li></ol>
+<pre>import unicodedata
+
+
+def normalize_unicode(text: str) -&gt; str:
+    return unicodedata.normalize(&quot;NFKC&quot;, text).replace(&quot;\u2212&quot;, &quot;-&quot;)</pre>
+</div>
+<div class="advice" id="advice-near-miss">
+<h3>near-miss: Compare exact values; keep any tolerance tighter than a meaningful difference</h3>
+<p>A close but wrong answer was accepted: off by one, a factor of 10, a flipped sign, one changed digit, wrong rounding, the adjacent option, an open instead of a closed endpoint. Tolerances, substring or prefix matches and comparisons of absolute values do this, and RL finds such gaps fast.</p>
+<ol><li>Compare exact answers exactly (fractions.Fraction or a CAS).</li><li>If a tolerance is needed, make it relative and smaller than the precision the gold is given to.</li><li>Never accept by substring or prefix (&#x27;42&#x27; in &#x27;421&#x27;, &#x27;3.1&#x27;.startswith(&#x27;3&#x27;)).</li><li>Compare signs, interval endpoint types and every set element explicitly.</li></ol>
+<pre>import math
+
+
+def same_value(a: float, b: float) -&gt; bool:
+    return math.isclose(a, b, rel_tol=1e-9, abs_tol=0.0)</pre>
+</div>
+<div class="advice" id="advice-hedge">
+<h3>hedge: Reject responses that give more than one candidate</h3>
+<p>A response that names several candidates (&#x27;A or B&#x27;, every option) was accepted. A policy trained on this reward learns to list everything.</p>
+<ol><li>Extract every candidate answer and accept only when exactly one is found and it is the gold.</li><li>For multiple choice, count distinct standalone labels in the answer part.</li></ol>
+<pre>import re
+
+
+def labels_named(text: str, labels: str = &quot;ABCD&quot;) -&gt; set[str]:
+    return set(re.findall(rf&quot;(?&lt;![A-Za-z])[{labels}](?![A-Za-z])&quot;, text))
+
+
+def grade_choice(response: str, gold: str) -&gt; float:
+    return float(labels_named(response) == {gold})</pre>
+</div>
+<div class="advice" id="advice-identity">
+<h3>identity: Make the grader accept the gold answer itself</h3>
+<p>The gold answer, written in the response template, was rejected. Every other variant of that item is then not evaluable, and a reward function that rejects correct answers trains a model away from them.</p>
+<ol><li>Check the answer extraction against the exact response template: an extractor that expects \boxed{} or &#x27;####&#x27; rejects a plain answer.</li><li>Normalize the gold and the extracted answer with the same function before comparing them.</li><li>If the template is not the one your grader&#x27;s contract expects, re-run misgrade with --template (boxed, gsm8k, answer-tag, final-answer, or your own with {answer}).</li></ol>
+<pre>def grade(response: str, gold: str) -&gt; float:
+    answer = extract_answer(response)
+    if answer is None:
+        return 0.0
+    return float(normalize(answer) == normalize(gold))  # one normalizer, both sides</pre>
+</div>
+<div class="advice" id="advice-worker-death">
+<h3>worker-death: Replace dead workers instead of scoring every later call 0</h3>
+<p>After a process the grader uses was killed, verdicts changed. This is the verl#8011 class: after one math_verify worker dies, every later correct answer scores 0, and training continues on a reward that is silently wrong.</p>
+<ol><li>Catch BrokenProcessPool (or your framework&#x27;s equivalent), recreate the pool and retry the call once.</li><li>Fail loudly if workers keep dying, instead of returning a default score.</li></ol>
+<pre>from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
+
+
+class PooledGrader:
+    def __init__(self) -&gt; None:
+        self.pool = ProcessPoolExecutor(max_workers=1)
+
+    def __call__(self, response: str, gold: str) -&gt; float:
+        try:
+            return self.pool.submit(grade, response, gold).result(timeout=10)
+        except BrokenProcessPool:
+            self.pool = ProcessPoolExecutor(max_workers=1)  # replace, retry once
+            return self.pool.submit(grade, response, gold).result(timeout=10)</pre>
+</div>
+<div class="advice" id="advice-timeout">
+<h3>timeout: Leave the grader usable after a timeout</h3>
+<p>After one call hit the timeout, earlier cases were graded differently: the timeout left the grader broken (an alarm still armed, a half-built cache, a pool with a hung worker).</p>
+<ol><li>Restore state in a finally block when a call is interrupted.</li><li>Recreate worker pools after a timeout instead of reusing them.</li></ol>
+</div>
+<div class="advice" id="advice-repeat">
+<h3>repeat: Make the grader stateless between calls</h3>
+<p>Grading the same case again in the same process gave a different verdict: the grader keeps state between calls (a cache keyed on something unstable, a global counter, a mutated default argument).</p>
+<ol><li>Remove module-level mutable state from the grading path.</li><li>Cache only pure functions, keyed by their whole input.</li><li>Derive any randomness from the input, never from a global generator.</li></ol>
+</div>
+</section>
+<section id="run">
+<h2>Run</h2>
+<dl class="kv">
+<dt>answer type</dt><dd>every type</dd>
+<dt>template</dt><dd>\boxed{{answer}}</dd>
+<dt>budget</dt><dd>40</dd>
+<dt>seed</dt><dd>7</dd>
+<dt>categories</dt><dd>all</dd>
+<dt>excluded</dt><dd>none</dd>
+<dt>search</dt><dd>on</dd>
+<dt>minimize</dt><dd>on, 50 calls per finding</dd>
+<dt>fault checks</dt><dd>worker-death, timeout, repeat (200 calls)</dd>
+<dt>errors as rejections</dt><dd>no</dd>
+<dt>isolation</dt><dd>subprocess</dd>
+<dt>timeout</dt><dd>10 s per call</dd>
+<dt>accept threshold</dt><dd>score &gt;= 0.5</dd>
+<dt>platform</dt><dd>test</dd>
+<dt>python</dt><dd>3.13.0</dd>
+<dt>sympy</dt><dd>1.14.0</dd>
+<dt>misgrade</dt><dd>0.0.0-test</dd>
+</dl>
+</section>
+</main>
+<footer>
+<p>Generated by misgrade 0.0.0-test from the audit started 2026-02-03T04:05:06+00:00. Re-render it from the result JSON with <code>misgrade report misgrade-result.json --format html</code>.</p>
+</footer>
+</div>
+</body>
+</html>

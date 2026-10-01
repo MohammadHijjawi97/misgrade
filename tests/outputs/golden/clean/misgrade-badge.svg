@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="20" role="img" aria-label="misgrade: FP 0/2 · FN 0/1">
+  <title>misgrade audit of toy: 0 of 2 wrong answers accepted, 0 of 1 equivalent answers rejected, 0 of 2 gold answers rejected, 0 of 0 fault-check verdicts changed (seed 0)</title>
+  <linearGradient id="misgrade-s" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="misgrade-r">
+    <rect width="160" height="20" rx="3" fill="#fff"/>
+  </clipPath>
+  <g clip-path="url(#misgrade-r)">
+    <rect width="63" height="20" fill="#555"/>
+    <rect x="63" width="97" height="20" fill="#44cc11"/>
+    <rect width="160" height="20" fill="url(#misgrade-s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+    <text x="31.5" y="15" fill="#010101" fill-opacity=".3" textLength="51" lengthAdjust="spacing">misgrade</text>
+    <text x="31.5" y="14" textLength="51" lengthAdjust="spacing">misgrade</text>
+    <text x="111.5" y="15" fill="#010101" fill-opacity=".3" textLength="85" lengthAdjust="spacing">FP 0/2 · FN 0/1</text>
+    <text x="111.5" y="14" textLength="85" lengthAdjust="spacing">FP 0/2 · FN 0/1</text>
+  </g>
+</svg>

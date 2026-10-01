@@ -1,0 +1,110 @@
+{
+  "$schema": "https://raw.githubusercontent.com/MohammadHijjawi97/misgrade/main/src/misgrade/schema/grader-card.schema.json",
+  "card_version": 1,
+  "misgrade_version": "0.0.0-test",
+  "generated_at": "2026-01-01T00:00:00+00:00",
+  "duration_s": 1.25,
+  "grader": {
+    "name": "toy",
+    "adapter": "callable",
+    "target": "toy_rewards:compute_score",
+    "source": "toy_rewards.py:12",
+    "versions": {
+      "toy": "1.0"
+    }
+  },
+  "config": {
+    "answer_type": null,
+    "template": "{answer}",
+    "budget": 50,
+    "seed": 0,
+    "include": null,
+    "exclude": [],
+    "search": false,
+    "minimize": true,
+    "minimize_budget": 50,
+    "faults": [],
+    "fault_budget": 200,
+    "errors_as_reject": false,
+    "run": {
+      "isolation": "subprocess",
+      "timeout_s": 10.0,
+      "startup_timeout_s": 120.0,
+      "accept_threshold": 0.5,
+      "concurrency": 4
+    }
+  },
+  "environment": {
+    "platform": "test",
+    "python": "3.13.0",
+    "sympy": "1.13.3"
+  },
+  "summary": {
+    "items": 2,
+    "cases": 5,
+    "calls": 5,
+    "errors": 0,
+    "not_evaluable": 0,
+    "self_validation": {
+      "k": 2,
+      "n": 2,
+      "value": 1.0,
+      "low": 0.34238022750665303,
+      "high": 1.0
+    },
+    "fn": {
+      "k": 0,
+      "n": 1,
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.7934506856227626
+    },
+    "fp": {
+      "k": 0,
+      "n": 2,
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.6576197724933469
+    },
+    "fault": {
+      "k": 0,
+      "n": 0,
+      "value": null,
+      "low": 0.0,
+      "high": 1.0
+    },
+    "by_category": [
+      {
+        "category": "whitespace",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      },
+      {
+        "category": "near-miss",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      },
+      {
+        "category": "hedge",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      }
+    ],
+    "by_fault": [],
+    "pattern": []
+  },
+  "findings": [],
+  "findings_omitted": 0
+}

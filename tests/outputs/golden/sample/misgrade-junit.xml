@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="misgrade: toy" tests="7" failures="4" errors="0" skipped="0" time="1.250">
+  <testsuite name="misgrade.main" tests="5" failures="2" errors="0" skipped="0" time="0.005" timestamp="2026-01-01T00:00:00+00:00">
+    <properties>
+      <property name="grader" value="toy"/>
+      <property name="adapter" value="callable"/>
+      <property name="target" value="toy_rewards:compute_score"/>
+      <property name="source" value="toy_rewards.py:12"/>
+      <property name="misgrade_version" value="0.0.0-test"/>
+      <property name="template" value="{answer}"/>
+      <property name="seed" value="0"/>
+      <property name="budget" value="50"/>
+    </properties>
+    <testcase classname="misgrade.main.identity" name="number-001::identity" time="0.001"/>
+    <testcase classname="misgrade.main.whitespace" name="number-001::ws.trailing-space" time="0.001">
+      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;42 &quot; (gold &quot;42&quot;; appended a space)">finding: false-negative:number-001::ws.trailing-space
+kind: false negative
+category: whitespace (variant)
+item: number-001 (number)
+gold: "42"
+response: "42 "
+operators: ws.trailing-space
+expected: accept
+observed: reject (score 0)
+reference (the gold itself): accept (score 1)
+certificate (construction): appended a space</failure>
+    </testcase>
+    <testcase classname="misgrade.main.near-miss" name="number-001::number.plus-one" time="0.001">
+      <failure type="false-positive" message="false positive: expected reject, observed accept (score 1) for &quot;43&quot; (gold &quot;42&quot;; 43 != 42)">finding: false-positive:number-001::number.plus-one
+kind: false positive
+category: near-miss (mutant)
+item: number-001 (number)
+gold: "42"
+response: "43"
+operators: number.plus-one
+expected: reject
+observed: accept (score 1)
+certificate (cas): 43 != 42
+  gold_value: 42
+  case_value: 43</failure>
+    </testcase>
+    <testcase classname="misgrade.main.identity" name="mc-001::identity" time="0.001"/>
+    <testcase classname="misgrade.main.hedge" name="mc-001::mc.hedge-next" time="0.001"/>
+  </testsuite>
+  <testsuite name="misgrade.search" tests="1" failures="1" errors="0" skipped="0" time="0.001" timestamp="2026-01-01T00:00:00+00:00">
+    <properties>
+      <property name="grader" value="toy"/>
+      <property name="adapter" value="callable"/>
+      <property name="target" value="toy_rewards:compute_score"/>
+      <property name="source" value="toy_rewards.py:12"/>
+      <property name="misgrade_version" value="0.0.0-test"/>
+      <property name="template" value="{answer}"/>
+      <property name="seed" value="0"/>
+      <property name="budget" value="50"/>
+    </properties>
+    <testcase classname="misgrade.search.latex-wrapper" name="number-001::latex.boxed+ws.trailing-space" time="0.001">
+      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;\\boxed{42} &quot; (gold &quot;42&quot;; wrapped in \boxed{}, then appended a space)">finding: false-negative:number-001::latex.boxed+ws.trailing-space
+kind: false negative
+category: latex-wrapper (variant)
+item: number-001 (number)
+gold: "42"
+response: "\\boxed{42} "
+operators: latex.boxed + ws.trailing-space
+expected: accept
+observed: reject (score 0)
+reference (the gold itself): accept (score 1)
+certificate (construction): wrapped in \boxed{}, then appended a space
+minimized to: number-001::ws.trailing-space
+minimized response: "42 "
+minimized observed: reject (score 0)
+minimized certificate (construction): appended a space</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="misgrade.fault" tests="1" failures="1" errors="0" skipped="0" time="0.001" timestamp="2026-01-01T00:00:00+00:00">
+    <properties>
+      <property name="grader" value="toy"/>
+      <property name="adapter" value="callable"/>
+      <property name="target" value="toy_rewards:compute_score"/>
+      <property name="source" value="toy_rewards.py:12"/>
+      <property name="misgrade_version" value="0.0.0-test"/>
+      <property name="template" value="{answer}"/>
+      <property name="seed" value="0"/>
+      <property name="budget" value="50"/>
+    </properties>
+    <testcase classname="misgrade.fault.identity" name="number-001::identity@repeat" time="0.001">
+      <failure type="fault" message="fault: expected accept, observed reject (score 0) for &quot;42&quot; (gold &quot;42&quot;; the response is the gold answer itself)">finding: fault:number-001::identity@repeat
+kind: fault
+category: identity (variant)
+item: number-001 (number)
+gold: "42"
+response: "42"
+operators: (none: the gold itself)
+expected: accept
+observed: reject (score 0)
+reference (clean run): accept (score 1)
+fault check: repeat
+certificate (construction): the response is the gold answer itself</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

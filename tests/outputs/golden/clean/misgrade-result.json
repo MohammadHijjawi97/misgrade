@@ -1,0 +1,270 @@
+{
+  "format": "misgrade.result",
+  "format_version": 1,
+  "misgrade_version": "0.0.0-test",
+  "started_at": "2026-01-01T00:00:00+00:00",
+  "duration_s": 1.25,
+  "environment": {
+    "python": "3.13.0",
+    "platform": "test",
+    "sympy": "1.13.3"
+  },
+  "grader": {
+    "name": "toy",
+    "adapter": "callable",
+    "target": "toy_rewards:compute_score",
+    "source": "toy_rewards.py:12",
+    "versions": {
+      "toy": "1.0"
+    }
+  },
+  "config": {
+    "answer_type": null,
+    "template": "{answer}",
+    "budget": 50,
+    "seed": 0,
+    "include": null,
+    "exclude": [],
+    "search": false,
+    "minimize": true,
+    "minimize_budget": 50,
+    "faults": [],
+    "fault_budget": 200,
+    "errors_as_reject": false,
+    "run": {
+      "isolation": "subprocess",
+      "timeout_s": 10.0,
+      "startup_timeout_s": 120.0,
+      "accept_threshold": 0.5,
+      "concurrency": 4
+    }
+  },
+  "items": [
+    {
+      "id": "number-001",
+      "type": "number",
+      "gold": "42",
+      "prompt": "6 x 7?"
+    },
+    {
+      "id": "mc-001",
+      "type": "mc",
+      "gold": "B",
+      "prompt": "2 + 2?",
+      "choices": [
+        "3",
+        "4",
+        "5",
+        "6"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::identity",
+        "item_id": "number-001",
+        "response": "42",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "number-001::ws.trailing-space",
+        "item_id": "number-001",
+        "response": "42 ",
+        "ops": [
+          "ws.trailing-space"
+        ],
+        "category": "whitespace",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "appended a space",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "number-001::number.plus-one",
+        "item_id": "number-001",
+        "response": "43",
+        "ops": [
+          "number.plus-one"
+        ],
+        "category": "near-miss",
+        "certificate": {
+          "claim": "different",
+          "method": "cas",
+          "reason": "43 != 42",
+          "evidence": {
+            "gold_value": "42",
+            "case_value": "43"
+          }
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "variant",
+        "id": "mc-001::identity",
+        "item_id": "mc-001",
+        "response": "B",
+        "ops": [],
+        "category": "identity",
+        "certificate": {
+          "claim": "equivalent",
+          "method": "construction",
+          "reason": "the response is the gold answer itself",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 1.0,
+        "accepted": true,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    },
+    {
+      "case": {
+        "kind": "mutant",
+        "id": "mc-001::mc.hedge-next",
+        "item_id": "mc-001",
+        "response": "B or C",
+        "ops": [
+          "mc.hedge-next"
+        ],
+        "category": "hedge",
+        "certificate": {
+          "claim": "different",
+          "method": "construction",
+          "reason": "names two options, so it commits to no single answer",
+          "evidence": {}
+        }
+      },
+      "verdict": {
+        "status": "ok",
+        "score": 0.0,
+        "accepted": false,
+        "error": null,
+        "elapsed_s": 0.001
+      },
+      "phase": "main",
+      "fault": null,
+      "reference": null
+    }
+  ],
+  "findings": [],
+  "summary": {
+    "items": 2,
+    "cases": 5,
+    "calls": 5,
+    "errors": 0,
+    "not_evaluable": 0,
+    "self_validation": {
+      "k": 2,
+      "n": 2,
+      "value": 1.0,
+      "low": 0.34238022750665303,
+      "high": 1.0
+    },
+    "fn": {
+      "k": 0,
+      "n": 1,
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.7934506856227626
+    },
+    "fp": {
+      "k": 0,
+      "n": 2,
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.6576197724933469
+    },
+    "fault": {
+      "k": 0,
+      "n": 0,
+      "value": null,
+      "low": 0.0,
+      "high": 1.0
+    },
+    "by_category": [
+      {
+        "category": "whitespace",
+        "kind": "false-negative",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      },
+      {
+        "category": "near-miss",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      },
+      {
+        "category": "hedge",
+        "kind": "false-positive",
+        "k": 0,
+        "n": 1,
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.7934506856227626
+      }
+    ],
+    "by_fault": [],
+    "pattern": []
+  }
+}

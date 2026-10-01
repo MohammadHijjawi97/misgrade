@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="misgrade: toy" tests="5" failures="0" errors="0" skipped="0" time="1.250">
+  <testsuite name="misgrade.main" tests="5" failures="0" errors="0" skipped="0" time="0.005" timestamp="2026-01-01T00:00:00+00:00">
+    <properties>
+      <property name="grader" value="toy"/>
+      <property name="adapter" value="callable"/>
+      <property name="target" value="toy_rewards:compute_score"/>
+      <property name="source" value="toy_rewards.py:12"/>
+      <property name="misgrade_version" value="0.0.0-test"/>
+      <property name="template" value="{answer}"/>
+      <property name="seed" value="0"/>
+      <property name="budget" value="50"/>
+    </properties>
+    <testcase classname="misgrade.main.identity" name="number-001::identity" time="0.001"/>
+    <testcase classname="misgrade.main.whitespace" name="number-001::ws.trailing-space" time="0.001"/>
+    <testcase classname="misgrade.main.near-miss" name="number-001::number.plus-one" time="0.001"/>
+    <testcase classname="misgrade.main.identity" name="mc-001::identity" time="0.001"/>
+    <testcase classname="misgrade.main.hedge" name="mc-001::mc.hedge-next" time="0.001"/>
+  </testsuite>
+</testsuites>

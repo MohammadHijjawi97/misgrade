@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="misgrade: my &quot;grader&quot; &lt;v2&gt;" tests="17" failures="8" errors="2" skipped="3" time="12.500">
+  <testsuite name="misgrade.main" tests="10" failures="4" errors="2" skipped="1" time="0.257" timestamp="2026-02-03T04:05:06+00:00">
+    <properties>
+      <property name="grader" value="my &quot;grader&quot; &lt;v2&gt;"/>
+      <property name="adapter" value="verl"/>
+      <property name="target" value="C:\Users\Me\rewards\math rewards.py:compute_score"/>
+      <property name="source" value="C:\Users\Me\rewards\math rewards.py:42"/>
+      <property name="misgrade_version" value="0.0.0-test"/>
+      <property name="template" value="\boxed{{answer}}"/>
+      <property name="seed" value="7"/>
+      <property name="budget" value="40"/>
+    </properties>
+    <testcase classname="misgrade.main.identity" name="number-007::identity" time="0.001"/>
+    <testcase classname="misgrade.main.unicode-form" name="number-007::unicode.minus" time="0.001">
+      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;\\boxed{\u22121000}&quot; (gold &quot;-1000&quot;; sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold)">finding: false-negative:number-007::unicode.minus
+kind: false negative
+category: unicode-form (variant)
+item: number-007 (number)
+gold: "-1000"
+response: "\\boxed{\u22121000}"
+operators: unicode.minus
+expected: accept
+observed: reject (score 0)
+reference (the gold itself): accept (score 1)
+certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold
+  sympy: 1.14.0
+  value: -1000</failure>
+    </testcase>
+    <testcase classname="misgrade.main.thousands-separator" name="number-007::sep.comma" time="0.001"/>
+    <testcase classname="misgrade.main.near-miss" name="number-007::near.plus-one" time="0.250">
+      <failure type="false-positive" message="false positive: expected reject, observed accept (score 1) for &quot;\\boxed{-999} &lt;script&gt;alert(\&quot;x\&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--\x07\U0001f600&quot; (gold &quot;-1000&quot;; names two options | so it commits to no single answer)">finding: false-positive:number-007::near.plus-one
+kind: false positive
+category: near-miss (mutant)
+item: number-007 (number)
+gold: "-1000"
+response: "\\boxed{-999} &lt;script&gt;alert(\"x\")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \\boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!--\x07\U0001f600"
+operators: near.plus-one
+expected: reject
+observed: accept (score 1)
+certificate (structural): names two options | so it commits to no single answer
+  labels: A, B</failure>
+    </testcase>
+    <testcase classname="misgrade.main.pathological" name="number-007::patho.tower" time="0.000">
+      <error type="timeout" message="timeout: no answer within 10 s"/>
+    </testcase>
+    <testcase classname="misgrade.main.identity" name="mc-003::identity" time="0.001"/>
+    <testcase classname="misgrade.main.hedge" name="mc-003::mc.hedge-prev" time="0.001">
+      <failure type="false-positive" message="false positive: expected reject, observed accept (score 0.75) for &quot;\\boxed{A or B}&quot; (gold &quot;B&quot;; names two options | so it commits to no single answer)">finding: false-positive:mc-003::mc.hedge-prev
+kind: false positive
+category: hedge (mutant)
+item: mc-003 (mc)
+gold: "B"
+response: "\\boxed{A or B}"
+operators: mc.hedge-prev
+expected: reject
+observed: accept (score 0.75)
+certificate (structural): names two options | so it commits to no single answer
+  labels: A, B</failure>
+    </testcase>
+    <testcase classname="misgrade.main.mc-form" name="mc-003::mc.bold" time="0.000">
+      <error type="error" message="error: ValueError: bad &quot;input&quot; &lt;here&gt;\u0000"/>
+    </testcase>
+    <testcase classname="misgrade.main.identity" name="string-002::identity" time="0.001">
+      <failure type="self-validation" message="self-validation failure: expected accept, observed reject (score 0) for &quot;\\boxed{say \&quot;hi\&quot;}&quot; (gold &quot;say \&quot;hi\&quot;&quot;; the response is the gold answer itself)">finding: self-validation:string-002::identity
+kind: self-validation failure
+category: identity (variant)
+item: string-002 (string)
+gold: "say \"hi\""
+response: "\\boxed{say \"hi\"}"
+operators: (none: the gold itself)
+expected: accept
+observed: reject (score 0)
+certificate (construction): the response is the gold answer itself</failure>
+    </testcase>
+    <testcase classname="misgrade.main.whitespace" name="string-002::ws.trailing-space" time="0.001">
+      <skipped message="not evaluable: the item's gold was not accepted"/>
+    </testcase>
+  </testsuite>
+  <testsuite name="misgrade.search" tests="1" failures="1" errors="0" skipped="0" time="0.001" timestamp="2026-02-03T04:05:06+00:00">
+    <properties>
+      <property name="grader" value="my &quot;grader&quot; &lt;v2&gt;"/>
+      <property name="adapter" value="verl"/>
+      <property name="target" value="C:\Users\Me\rewards\math rewards.py:compute_score"/>
+      <property name="source" value="C:\Users\Me\rewards\math rewards.py:42"/>
+      <property name="misgrade_version" value="0.0.0-test"/>
+      <property name="template" value="\boxed{{answer}}"/>
+      <property name="seed" value="7"/>
+      <property name="budget" value="40"/>
+    </properties>
+    <testcase classname="misgrade.search.thousands-separator" name="number-007::sep.comma+unicode.minus+phrase.the-answer-is" time="0.001">
+      <failure type="false-negative" message="false negative: expected accept, observed reject (score 0) for &quot;The answer is \\boxed{\u22121,000}.\n&quot; (gold &quot;-1000&quot;; sympy: &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold)">finding: false-negative:number-007::sep.comma+unicode.minus+phrase.the-answer-is
+kind: false negative
+category: thousands-separator (variant)
+item: number-007 (number)
+gold: "-1000"
+response: "The answer is \\boxed{\u22121,000}.\n"
+operators: sep.comma + unicode.minus + phrase.the-answer-is
+expected: accept
+observed: reject (score 0)
+reference (the gold itself): accept (score 1)
+certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold
+  sympy: 1.14.0
+  value: -1000
+minimized to: number-007::unicode.minus
+minimized response: "\\boxed{\u22121000}"
+minimized observed: reject (score 0)
+minimized certificate (cas): sympy: &lt;script&gt;alert("x")&lt;/script&gt; ]]&gt; `tick` ``two`` | pipe *star* _under_ \boxed{1} [bold]markup[/bold] &amp; --&gt; &lt;!-- equals the gold
+minimized   sympy: 1.14.0
+minimized   value: -1000</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="misgrade.fault" tests="6" failures="3" errors="0" skipped="2" time="0.003" timestamp="2026-02-03T04:05:06+00:00">
+    <properties>
+      <property name="grader" value="my &quot;grader&quot; &lt;v2&gt;"/>
+      <property name="adapter" value="verl"/>
+      <property name="target" value="C:\Users\Me\rewards\math rewards.py:compute_score"/>
+      <property name="source" value="C:\Users\Me\rewards\math rewards.py:42"/>
+      <property name="misgrade_version" value="0.0.0-test"/>
+      <property name="template" value="\boxed{{answer}}"/>
+      <property name="seed" value="7"/>
+      <property name="budget" value="40"/>
+    </properties>
+    <testcase classname="misgrade.fault.identity" name="number-007::identity@worker-death" time="0.000">
+      <failure type="fault" message="fault: expected accept, observed crash: worker exited with code -9 for &quot;\\boxed{-1000}&quot; (gold &quot;-1000&quot;; the response is the gold answer itself)">finding: fault:number-007::identity@worker-death
+kind: fault
+category: identity (variant)
+item: number-007 (number)
+gold: "-1000"
+response: "\\boxed{-1000}"
+operators: (none: the gold itself)
+expected: accept
+observed: crash: worker exited with code -9
+reference (clean run): accept (score 1)
+fault check: worker-death
+certificate (construction): the response is the gold answer itself</failure>
+    </testcase>
+    <testcase classname="misgrade.fault.identity" name="mc-003::identity@worker-death" time="0.001"/>
+    <testcase classname="misgrade.fault.identity" name="number-007::identity@timeout" time="0.000">
+      <skipped message="timed out: no evidence that the verdict changed"/>
+    </testcase>
+    <testcase classname="misgrade.fault.identity" name="mc-003::identity@timeout" time="0.000">
+      <failure type="fault" message="fault: expected accept, observed error: ValueError: bad &quot;input&quot; &lt;here&gt;\u0000 for &quot;\\boxed{B}&quot; (gold &quot;B&quot;; the response is the gold answer itself)">finding: fault:mc-003::identity@timeout
+kind: fault
+category: identity (variant)
+item: mc-003 (mc)
+gold: "B"
+response: "\\boxed{B}"
+operators: (none: the gold itself)
+expected: accept
+observed: error: ValueError: bad "input" &lt;here&gt;\u0000
+reference (clean run): accept (score 1)
+fault check: timeout
+certificate (construction): the response is the gold answer itself</failure>
+    </testcase>
+    <testcase classname="misgrade.fault.identity" name="number-007::identity@repeat" time="0.001">
+      <failure type="fault" message="fault: expected accept, observed reject (score 0) for &quot;\\boxed{-1000}&quot; (gold &quot;-1000&quot;; the response is the gold answer itself)">finding: fault:number-007::identity@repeat
+kind: fault
+category: identity (variant)
+item: number-007 (number)
+gold: "-1000"
+response: "\\boxed{-1000}"
+operators: (none: the gold itself)
+expected: accept
+observed: reject (score 0)
+reference (clean run): accept (score 1)
+fault check: repeat
+certificate (construction): the response is the gold answer itself</failure>
+    </testcase>
+    <testcase classname="misgrade.fault.identity" name="string-002::identity@repeat" time="0.001">
+      <skipped message="the clean run gave no score"/>
+    </testcase>
+  </testsuite>
+</testsuites>
