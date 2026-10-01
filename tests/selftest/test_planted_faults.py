@@ -5,8 +5,14 @@ through the runner)."""
 from __future__ import annotations
 
 import multiprocessing
+import os
+import tempfile
 import threading
+import time
 from collections.abc import Iterator
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -122,3 +128,60 @@ def test_pool_dies_silently() -> None:
 )
 def test_each_bug_on_one_example(function: object, answer: str, gold: str, score: float) -> None:
     assert function(answer, gold) == score  # type: ignore[operator]
+
+
+def _child_marker(name: str) -> Path:
+    """The marker a grader process started by this test process would leave."""
+    return Path(tempfile.gettempdir()) / f"misgrade-selftest-{name}-{os.getpid()}.marker"
+
+
+@pytest.fixture
+def child_markers() -> Iterator[None]:
+    for name in ("timeout", "worker-death"):
+        _child_marker(name).unlink(missing_ok=True)
+    yield
+    for name in ("timeout", "worker-death"):
+        _child_marker(name).unlink(missing_ok=True)
+
+
+def _grade_in_a_fresh_process(function: Any, answer: str, gold: str) -> float:
+    context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=1, mp_context=context) as pool:
+        score: float = pool.submit(function, answer, gold).result(timeout=60)
+    return score
+
+
+def test_a_process_killed_while_hanging_breaks_its_replacement(child_markers: None) -> None:
+    context = multiprocessing.get_context("spawn")
+    hanging = context.Process(
+        target=planted.breaks_after_timeout, args=("10^{10^{10}}", "42"), daemon=True
+    )
+    hanging.start()
+    deadline = time.monotonic() + 60
+    while not _child_marker("timeout").exists() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert _child_marker("timeout").exists()
+    hanging.kill()
+    hanging.join(timeout=10)
+    assert _grade_in_a_fresh_process(planted.breaks_after_timeout, "42", "42") == 0.0
+    # the stale marker was consumed: the process after that one is not affected
+    assert _grade_in_a_fresh_process(planted.breaks_after_timeout, "42", "42") == 1.0
+
+
+def test_a_killed_grader_process_breaks_its_replacement(child_markers: None) -> None:
+    context = multiprocessing.get_context("spawn")
+    clean_exit = context.Process(target=planted.pool_dies_silently, args=("42", "42"))
+    clean_exit.start()
+    clean_exit.join(timeout=60)
+    assert clean_exit.exitcode == 0
+    assert not _child_marker("worker-death").exists()  # removed on a clean exit
+
+    pool = ProcessPoolExecutor(max_workers=1, mp_context=context)
+    assert pool.submit(planted.pool_dies_silently, "42", "42").result(timeout=60) == 1.0
+    assert _child_marker("worker-death").exists()
+    for process in list(pool._processes.values()):
+        process.kill()
+        process.join(timeout=10)
+    pool.shutdown(wait=True)
+    assert _grade_in_a_fresh_process(planted.pool_dies_silently, "42", "42") == 0.0
+    assert _grade_in_a_fresh_process(planted.pool_dies_silently, "42", "42") == 1.0

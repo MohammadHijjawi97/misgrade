@@ -16,13 +16,17 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing
+import multiprocessing.util
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Iterable
 from multiprocessing.connection import Connection
+from pathlib import Path
 from typing import Any, Final
 
 from misgrade.models import AnswerType, Category, FaultMode, FindingKind
@@ -378,7 +382,40 @@ _LOCK: Final = threading.Lock()
 _SEEN: set[tuple[str, str]] = set()
 _LAST_GOLD: list[str] = []
 _BROKEN: Final = threading.Event()
+_POOL_DEAD: Final = threading.Event()
+_STARTED: set[str] = set()
 _HELPER: dict[str, Any] = {}
+
+POISON_HANG_S: Final = 1.0
+"""How long ``breaks_after_timeout`` hangs on an expensive input (its own evaluator stuck)."""
+
+
+def _marker(name: str) -> Path:
+    """A file that outlives this process: it tells the next grader process started by the same
+    parent (the audit) that this one did not end cleanly."""
+    return Path(tempfile.gettempdir()) / f"misgrade-selftest-{name}-{os.getppid()}.marker"
+
+
+def _remove_marker(name: str) -> None:
+    with contextlib.suppress(OSError):
+        _marker(name).unlink()
+
+
+def _first_call(name: str) -> bool:
+    with _LOCK:
+        first = name not in _STARTED
+        _STARTED.add(name)
+    return first
+
+
+def _left_behind(name: str) -> bool:
+    """Whether a previous grader process of this audit left its marker (it was killed); the
+    marker is consumed, so only the process that replaces it is affected."""
+    marker = _marker(name)
+    if not marker.exists():
+        return False
+    _remove_marker(name)
+    return True
 
 
 def penalizes_repeats(answer: str, gold: str) -> float:
@@ -408,13 +445,19 @@ def main_thread_only(answer: str, gold: str) -> float:
 
 
 def breaks_after_timeout(answer: str, gold: str) -> float:
-    """Bug: evaluates with its own time limit; after one evaluation timed out (an expensive
-    input), its evaluator stays broken and every later answer scores 0 (the verl#8011 class)."""
+    """Bug: its evaluator hangs on an expensive input; after that, every later answer scores 0
+    (the verl#8011 class), whether the hang ended by its own time limit (the evaluator stays
+    broken) or by the process being killed (the next process finds the evaluator's stale lock
+    and gives up)."""
+    if _first_call("timeout") and _left_behind("timeout"):
+        _BROKEN.set()
     if _BROKEN.is_set():
         return 0.0
     if _looks_expensive(answer):
         _BROKEN.set()
-        time.sleep(0.05)  # the internal time limit expiring
+        _marker("timeout").touch()  # the stale lock, left behind if this process is killed
+        time.sleep(POISON_HANG_S)  # until its own time limit expires
+        _remove_marker("timeout")
         return 0.0
     return _clean(answer, gold)
 
@@ -452,23 +495,34 @@ def _helper_alive() -> bool:
 
 
 def pool_dies_silently(answer: str, gold: str) -> float:
-    """Bug: grades with the help of a child process and, once that process died, scores every
-    answer 0 instead of starting a new one (verl#8011: after one math_verify worker dies, every
-    later correct answer scores 0)."""
-    if not _helper_alive():
+    """Bug: grades with the help of a child process and, once a process of its pool died, scores
+    every answer 0 instead of starting a new one (verl#8011: after one math_verify worker dies,
+    every later correct answer scores 0). A killed helper breaks it in place; a killed grader
+    process breaks the process that replaces it (it finds the pool's stale lock)."""
+    if _first_call("worker-death"):
+        if _left_behind("worker-death"):
+            _POOL_DEAD.set()
+        _marker("worker-death").touch()
+        # removed when this process ends cleanly; a killed process leaves it behind
+        multiprocessing.util.Finalize(None, _remove_marker, args=("worker-death",), exitpriority=10)
+    if _POOL_DEAD.is_set() or not _helper_alive():
         return 0.0
     return _clean(answer, gold)
 
 
 def reset_state() -> None:
-    """Forget the fault-mode graders' state and stop the helper process (a fresh worker starts
-    with this state; tests that call the graders in-process use it between cases)."""
+    """Forget the fault-mode graders' state, remove their markers and stop the helper process
+    (a fresh worker starts in this state; tests that call the graders in-process use it)."""
     with _LOCK:
         _SEEN.clear()
         _LAST_GOLD.clear()
         _BROKEN.clear()
+        _POOL_DEAD.clear()
+        _STARTED.clear()
         helper = _HELPER.pop("process", None)
         pipe = _HELPER.pop("pipe", None)
+    for name in ("timeout", "worker-death"):
+        _remove_marker(name)
     if pipe is not None:
         pipe.close()
     if isinstance(helper, subprocess.Popen):  # pragma: no cover - see _start_helper

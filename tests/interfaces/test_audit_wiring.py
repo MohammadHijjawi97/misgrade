@@ -238,3 +238,70 @@ def test_end_to_end_on_a_planted_grader() -> None:
         f.kind is FindingKind.FALSE_NEGATIVE and f.category is Category.WHITESPACE
         for f in result.findings
     )
+
+
+def pathological_cases(
+    item: Item, *, template: str, include: Any = None, exclude: Any = frozenset()
+) -> list[Case]:
+    """generate_cases with one pathological mutant, honouring include/exclude."""
+    cases = fake_cases(item, template=template, include=include, exclude=exclude)
+    cases.append(make_mutant(item, "10^{10^{10}}", ("patho.tower",), Category.PATHOLOGICAL))
+    return [
+        case
+        for case in cases
+        if case.is_identity
+        or ((include is None or case.category in include) and case.category not in exclude)
+    ]
+
+
+def test_poison_comes_from_the_plan_or_is_generated(monkeypatch: pytest.MonkeyPatch) -> None:
+    from misgrade.api import poison_cases
+
+    monkeypatch.setattr(api_module, "generate_cases", pathological_cases)
+    planned = plan_cases(ITEMS, AuditConfig())
+    poison = poison_cases(ITEMS, planned, AuditConfig())
+    assert [case.case_id for case in poison] == ["n1::patho.tower", "n2::patho.tower"]
+    assert all(case in planned for case in poison)
+
+    config = AuditConfig(exclude=frozenset({Category.PATHOLOGICAL}))
+    planned = plan_cases(ITEMS, config)
+    assert not any(case.category is Category.PATHOLOGICAL for case in planned)
+    generated = poison_cases(ITEMS, planned, config)
+    assert [case.case_id for case in generated] == ["n1::patho.tower", "n2::patho.tower"]
+
+    monkeypatch.setattr(api_module, "generate_cases", fake_cases)
+    assert poison_cases(ITEMS, plan_cases(ITEMS, AuditConfig()), AuditConfig()) == []
+
+
+@pytest.mark.parametrize(
+    ("faults", "poisoned"),
+    [((FaultMode.TIMEOUT,), True), ((FaultMode.REPEAT, FaultMode.ORDER), False)],
+)
+def test_audit_passes_poison_only_to_the_timeout_check(
+    monkeypatch: pytest.MonkeyPatch, faults: tuple[FaultMode, ...], poisoned: bool
+) -> None:
+    recorder = Recorder()
+    recorder.install(monkeypatch)
+    monkeypatch.setattr(api_module, "generate_cases", pathological_cases)
+    seen: list[int] = []
+
+    def faults_check(spec: Any, reference: Any, config: Any, **kw: Any) -> list[Observation]:
+        seen.append(len(kw["poison"]))
+        return []
+
+    monkeypatch.setattr(api_module, "run_fault_checks", faults_check)
+    config = AuditConfig(
+        search=False,
+        minimize=False,
+        faults=faults,
+        exclude=frozenset({Category.PATHOLOGICAL}),
+    )
+    audit("m:f", ITEMS, config=config)
+    assert seen == [2 if poisoned else 0]
+
+
+def test_environment_records_what_can_change_verdicts() -> None:
+    from misgrade.api import environment
+
+    env = environment()
+    assert {"python", "implementation", "platform", "sympy", "mpmath"} <= set(env)

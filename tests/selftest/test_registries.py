@@ -58,7 +58,17 @@ def test_report_arithmetic() -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.needs("selftest", "transforms", "adapters", "runner", "stats", "minimize", "search")
+@pytest.mark.needs(
+    "selftest",
+    "transforms",
+    "adapters",
+    "runner",
+    "runner.faults",
+    "runner.worker",
+    "stats",
+    "minimize",
+    "search",
+)
 def test_selftest_recall_is_complete_and_clean_graders_are_clean() -> None:
     from misgrade.selftest import run_selftest
 

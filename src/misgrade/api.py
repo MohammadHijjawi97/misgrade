@@ -265,7 +265,7 @@ def poison_cases(items: Sequence[Item], planned: Sequence[Case], config: AuditCo
     return [
         case
         for item in items
-        for case in generate_cases(item, template=tmpl, include=only)
+        for case in generate_cases(item, template=tmpl, include=only, exclude=frozenset())
         if case.category is Category.PATHOLOGICAL
     ]
 
