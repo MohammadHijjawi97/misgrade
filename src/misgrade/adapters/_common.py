@@ -22,11 +22,11 @@ import sys
 import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Final, Literal
 
+from misgrade.adapters._libraries import KNOWN_LIBRARIES
 from misgrade.errors import ConfigError, GraderLoadError, MisgradeWarning
 
 __all__ = [
@@ -57,7 +57,6 @@ __all__ = [
     "signature_of",
     "source_location",
     "template_variables",
-    "versions_of",
 ]
 
 IN_PROCESS_PREFIX: Final = "<in-process>:"
@@ -65,25 +64,6 @@ IN_PROCESS_PREFIX: Final = "<in-process>:"
 
 INLINE_TARGET: Final = "<inline>"
 """The target of a grader whose whole configuration is in ``GraderSpec.options["config"]``."""
-
-KNOWN_LIBRARIES: Final[Mapping[str, str]] = {
-    "antlr4": "antlr4-python3-runtime",
-    "evaluate": "evaluate",
-    "inspect_ai": "inspect-ai",
-    "latex2sympy2": "latex2sympy2",
-    "latex2sympy2_extended": "latex2sympy2_extended",
-    "lm_eval": "lm-eval",
-    "math_verify": "math-verify",
-    "mpmath": "mpmath",
-    "pylatexenc": "pylatexenc",
-    "rapidfuzz": "rapidfuzz",
-    "regex": "regex",
-    "sympy": "sympy",
-    "trl": "trl",
-    "verifiers": "verifiers",
-    "verl": "verl",
-}
-"""Top-level modules whose version can change a grader's verdicts -> their distribution names."""
 
 # --------------------------------------------------------------------------------------------
 # In-process graders (lambdas, closures, objects): only usable with Isolation.NONE
@@ -214,9 +194,8 @@ def load_object(ref: TargetRef, *, default_attr: str | None = None, what: str = 
     attr = ref.attr or default_attr
     if attr is None:
         raise GraderLoadError(f"name the {what} inside {ref.location!r}: '{ref.location}:<name>'")
-    before = {name.partition(".")[0] for name in sys.modules}
+    before = {name.partition(".")[0] for name in list(sys.modules)}
     module = _import_file(ref.location) if ref.kind == "file" else _import_module(ref.location)
-    after = {name.partition(".")[0] for name in sys.modules}
     obj: Any = module
     walked: list[str] = []
     for part in attr.split("."):
@@ -228,6 +207,9 @@ def load_object(ref: TargetRef, *, default_attr: str | None = None, what: str = 
                 f"{where!r} has no attribute {part!r}{_did_you_mean(part, obj)}"
             ) from None
         walked.append(part)
+    # After the attribute walk: a lazy package (a module __getattr__, an alias finder) imports
+    # the submodule that defines the object, and its imports, only when the attribute is read.
+    after = {name.partition(".")[0] for name in list(sys.modules)}
     return Loaded(obj, module, frozenset(after - before))
 
 
@@ -325,8 +307,25 @@ def _import_file(location: str) -> ModuleType:
         del sys.modules[name]
         if not isinstance(exc, Exception):
             raise
-        raise GraderLoadError(f"importing {location!r} failed: {describe_exception(exc)}") from exc
+        raise _import_failure(location, path, exc) from exc
     return module
+
+
+def _import_failure(location: str, path: Path, exc: BaseException) -> GraderLoadError:
+    """The error for a file that could not be imported, with a hint when the file imports its
+    own package by name (``from grading import util`` in ``grading/grader.py``): a file target
+    puts only its own folder on ``sys.path``."""
+    message = f"importing {location!r} failed: {describe_exception(exc)}"
+    missing = exc.name if isinstance(exc, ModuleNotFoundError) else None
+    package = path.parent.name
+    if missing and missing.split(".")[0] == package and package.isidentifier():
+        message += (
+            f" (the file imports its own package {package!r} by name: pass it as the module "
+            f"'{package}.{path.stem}:<function>' with the folder that contains {package!r} on "
+            f"the import path: --path {display_path(path.parent.parent)}, the sys_path option "
+            "or PYTHONPATH)"
+        )
+    return GraderLoadError(message)
 
 
 def _import_by_stem(location: str, path: Path) -> ModuleType | None:
@@ -342,7 +341,7 @@ def _import_by_stem(location: str, path: Path) -> ModuleType | None:
         sys.modules.pop(stem, None)
         if not isinstance(exc, Exception):
             raise
-        raise GraderLoadError(f"importing {location!r} failed: {describe_exception(exc)}") from exc
+        raise _import_failure(location, path, exc) from exc
     return module if _module_file(module) == path else None
 
 
@@ -530,42 +529,6 @@ def display_path(file: str | Path) -> str:
         return path.resolve().relative_to(Path.cwd().resolve()).as_posix()
     except (ValueError, OSError):
         return path.as_posix()
-
-
-def versions_of(
-    *,
-    modules: Iterable[ModuleType | None] = (),
-    new_modules: Iterable[str] = (),
-    extra: Iterable[str] = (),
-) -> dict[str, str]:
-    """Versions of the known grading libraries a grader uses: those its modules reference
-    (``import sympy``, ``from math_verify import verify``), those its import brought in, and
-    ``extra`` top-level names the adapter itself used. Sorted by distribution name."""
-    used: set[str] = {name for name in new_modules if name in KNOWN_LIBRARIES}
-    used.update(name for name in extra if name in KNOWN_LIBRARIES)
-    for module in modules:
-        if module is None:
-            continue
-        own = module.__name__.partition(".")[0]
-        if own in KNOWN_LIBRARIES:
-            used.add(own)
-        for value in list(vars(module).values()):
-            if isinstance(value, ModuleType):
-                top = value.__name__.partition(".")[0]
-            else:
-                owner = getattr(value, "__module__", None)
-                top = owner.partition(".")[0] if isinstance(owner, str) else ""
-            if top in KNOWN_LIBRARIES:
-                used.add(top)
-    found: dict[str, str] = {}
-    for top in used:
-        dist = KNOWN_LIBRARIES[top]
-        try:
-            found[dist] = version(dist)
-        except PackageNotFoundError:
-            loaded = sys.modules.get(top)
-            found[dist] = str(getattr(loaded, "__version__", "unknown"))
-    return dict(sorted(found.items()))
 
 
 # --------------------------------------------------------------------------------------------

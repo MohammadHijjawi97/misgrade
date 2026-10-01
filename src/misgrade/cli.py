@@ -260,6 +260,22 @@ def _add_grader_options(parser: argparse.ArgumentParser) -> None:
         help="adapter option (VALUE is read as JSON when it parses); repeatable",
     )
     parser.add_argument("--name", help="display name of the grader in reports")
+    parser.add_argument(
+        "--path",
+        action="append",
+        default=[],
+        metavar="DIR",
+        help="a folder put first on the grader's import path, for graders in a repository "
+        "that is not installed (option sys_path); repeatable",
+    )
+    parser.add_argument(
+        "--grader-version",
+        action="append",
+        default=[],
+        metavar="NAME=VERSION",
+        help="record this version of a library or of the grader in the result (option "
+        "versions), e.g. a commit of a source tree misgrade cannot read; repeatable",
+    )
 
 
 def _add_audit_options(parser: argparse.ArgumentParser) -> None:
@@ -280,8 +296,22 @@ def _add_audit_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--template",
         default="plain",
-        help=f"response format: {', '.join(TEMPLATE_PRESETS)}, or a text with {{answer}} "
-        "(default: %(default)s)",
+        help=f"response format: {', '.join(TEMPLATE_PRESETS)}, or a text in which every "
+        "literal {answer} is replaced by the answer and nothing else is interpreted "
+        "(braces need no escaping: '\\boxed{{answer}}' gives \\boxed{42}; see: misgrade "
+        "list templates) (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--items",
+        metavar="IDS",
+        help="audit only these items: ids or shell-style patterns, comma-separated "
+        "(mc-00*, set-002)",
+    )
+    parser.add_argument(
+        "--exclude-items",
+        metavar="IDS",
+        help="leave out these items (ids or patterns, comma-separated), e.g. those outside "
+        "the grader's documented contract",
     )
     parser.add_argument(
         "--budget",
@@ -429,6 +459,24 @@ def _options(pairs: Sequence[str]) -> dict[str, Any]:
     return options
 
 
+def _grader_options(args: argparse.Namespace) -> dict[str, Any]:
+    """``--option`` pairs, with ``--path`` (option ``sys_path``) and ``--grader-version``
+    (option ``versions``) added."""
+    options = _options(args.option)
+    if args.path:
+        given = options.get("sys_path") or []
+        options["sys_path"] = [*([given] if isinstance(given, str) else given), *args.path]
+    if args.grader_version:
+        versions = dict(options.get("versions") or {})
+        for pair in args.grader_version:
+            name, sep, value = pair.partition("=")
+            if not sep or not name.strip() or not value.strip():
+                raise ConfigError(f"--grader-version needs NAME=VERSION, got {pair!r}")
+            versions[name.strip()] = value.strip()
+        options["versions"] = versions
+    return options
+
+
 def _read_result(path: Path) -> AuditResult:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -462,7 +510,7 @@ def _outputs_from_args(args: argparse.Namespace) -> _Outputs:
 def _finish(args: argparse.Namespace, result: AuditResult, out: Console, outputs: _Outputs) -> int:
     """Write the formats, print the summary and evaluate the gate (shared by audit, report,
     minimize). The files are written first, so nothing printed can lose them."""
-    from misgrade.gate import evaluate_gate
+    from misgrade.gate import evaluate_gate, nothing_measured
     from misgrade.outputs import write_outputs
 
     written = write_outputs(result, outputs.formats, args.out) if outputs.formats else {}
@@ -473,6 +521,11 @@ def _finish(args: argparse.Namespace, result: AuditResult, out: Console, outputs
     for fmt, path in written.items():
         out.print(Text(f"{fmt}: {path}"))
     if outputs.gate is None:
+        # A run that measured nothing is no pass, gate or not: exit 1 (as every gate fails).
+        nothing = nothing_measured(result.summary)
+        if nothing is not None:
+            out.print(Text.assemble(("failed: ", "bold red"), nothing))
+            return ExitCode.GATE_FAILED
         return ExitCode.OK
     outcome = evaluate_gate(
         outputs.gate, result.summary, allow_unmeasured=getattr(args, "allow_unmeasured", False)
@@ -487,9 +540,35 @@ def _finish(args: argparse.Namespace, result: AuditResult, out: Console, outputs
 
 
 def _items_from_args(args: argparse.Namespace, config: AuditConfig) -> Any:
-    from misgrade.seeds import read_items
+    from misgrade.seeds import load_seeds, read_items
 
-    return read_items(args.seeds, default_type=config.answer_type) if args.seeds else None
+    only, skip = _split(args.items), _split(args.exclude_items)
+    if args.seeds:
+        items = read_items(args.seeds, default_type=config.answer_type)
+    elif only or skip:
+        items = load_seeds(config.answer_type)
+    else:
+        return None
+    return _filter_items(items, only, skip)
+
+
+def _filter_items(items: Sequence[Item], only: Sequence[str], skip: Sequence[str]) -> list[Item]:
+    """The items whose id matches a pattern of ``only`` (all when empty) and none of
+    ``skip``; ConfigError when a pattern matches nothing or no item is left."""
+    from fnmatch import fnmatchcase
+
+    for pattern in (*only, *skip):
+        if not any(fnmatchcase(item.id, pattern) for item in items):
+            raise ConfigError(f"no item matches {pattern!r} (--items / --exclude-items)")
+    kept = [
+        item
+        for item in items
+        if (not only or any(fnmatchcase(item.id, pattern) for pattern in only))
+        and not any(fnmatchcase(item.id, pattern) for pattern in skip)
+    ]
+    if not kept:
+        raise ConfigError("--items / --exclude-items left no item to audit")
+    return kept
 
 
 def _cmd_audit(args: argparse.Namespace, out: Console, err: Console) -> int:
@@ -502,7 +581,7 @@ def _cmd_audit(args: argparse.Namespace, out: Console, err: Console) -> int:
         _items_from_args(args, config),
         config=config,
         adapter=args.adapter,
-        options=_options(args.option),
+        options=_grader_options(args),
         name=args.name,
     )
     return _finish(args, result, out, outputs)
@@ -590,10 +669,13 @@ def _cmd_list(args: argparse.Namespace, out: Console, err: Console) -> int:
         for mode in FaultMode:
             table.add_row(mode.value)
     elif args.what == "templates":
+        from misgrade.models import render_template
+
         table.add_column("preset")
-        table.add_column("template")
+        table.add_column("template (every {answer} is replaced; nothing else is interpreted)")
+        table.add_column("the answer 42 becomes")
         for name, template in TEMPLATE_PRESETS.items():
-            table.add_row(name, Text(template))
+            table.add_row(name, Text(template), Text(render_template(template, "42")))
     elif args.what == "operators":
         from misgrade.transforms import list_operators
 
@@ -740,7 +822,7 @@ def _cmd_minimize(args: argparse.Namespace, out: Console, err: Console) -> int:
     spec = GraderSpec(
         adapter=args.adapter or result.grader.adapter,
         target=result.grader.target,
-        options={**result.grader.options, **_options(args.option)},
+        options={**result.grader.options, **_grader_options(args)},
         name=args.name or result.grader.name,
     )
     identity = {

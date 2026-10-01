@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from misgrade.gate import nothing_measured
 from misgrade.models import AuditResult, Category, FaultMode, Finding, FindingKind, Rate
 from misgrade.outputs import register_writer
 from misgrade.outputs._common import (
@@ -75,6 +76,17 @@ def render_patches(result: AuditResult) -> str:
         ),
         "",
     ]
+    nothing = nothing_measured(result.summary)
+    if not groups and nothing is not None:
+        lines += [
+            (
+                f"Nothing was measured: {nothing.partition(', so')[0]}, so there is nothing "
+                "to harden on this evidence. Make the grader run on the cases first (the "
+                "report lists why the calls failed)."
+            ),
+            "",
+        ]
+        return "\n".join(lines)
     if not groups:
         lines += [
             (

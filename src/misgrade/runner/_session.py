@@ -8,20 +8,26 @@ the worker ``grade_kill_child`` and ``grade_die``); those are private to the run
 from __future__ import annotations
 
 import atexit
+import contextlib
 import math
 import multiprocessing
 import multiprocessing.util  # imported before the atexit hook below, so the hook runs first
+import os
+import signal
+import sys
 import threading
 import time
 from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
+from dataclasses import replace
 from multiprocessing.connection import wait
 from types import TracebackType
 from typing import Any, Final
 
 from misgrade.adapters import Grader, in_process_only, load_grader
 from misgrade.adapters._common import describe_exception
+from misgrade.adapters._libraries import complete_info, merge_versions, top_level_modules
 from misgrade.errors import GraderLoadError, MisgradeError
 from misgrade.models import (
     CallStatus,
@@ -79,6 +85,7 @@ class _Worker:
 
     def __init__(self, spec: GraderSpec, config: RunConfig) -> None:
         ctx = multiprocessing.get_context("spawn")
+        self._job: int | None = None
         self.conn, child_conn = ctx.Pipe(duplex=True)
         control_reader, self._control = ctx.Pipe(duplex=False)
         self.process: Any = ctx.Process(
@@ -97,6 +104,7 @@ class _Worker:
                 f"{describe_exception(exc)}"
             ) from exc
         _LIVE.add(self)
+        self._job = _contain(self.process)
         child_conn.close()
         control_reader.close()
         self.info = self._handshake(spec, config)
@@ -170,9 +178,110 @@ class _Worker:
         if process.is_alive():
             process.kill()
             process.join(5.0)
+        self._end_descendants()
         for conn in (self.conn, self._control):
             conn.close()
         _LIVE.discard(self)
+
+    def _end_descendants(self) -> None:
+        """End what is left of the processes the grader started (a child whose start failed
+        half-way, a subprocess it never waited for): on Windows by closing the worker's job
+        object, on POSIX by killing the worker's process group."""
+        if sys.platform == "win32":  # pragma: no cover - Windows only
+            job, self._job = self._job, None
+            if job is not None:
+                _close_job(job)
+            return
+        if self.process.pid is not None:
+            with contextlib.suppress(OSError):  # the group is gone when nothing is left
+                os.killpg(self.process.pid, signal.SIGKILL)
+
+    def query_info(self, timeout: float) -> GraderInfo | None:
+        """The grader's info as the worker sees it now (with the libraries imported since it
+        loaded the grader), or None when the worker does not answer."""
+        if not self.process.is_alive() or not self.send(("info",)):
+            return None
+        reply = self.receive(timeout)
+        if reply is _TIMEOUT or isinstance(reply, _Dead) or reply[0] != "info":
+            return None
+        return GraderInfo.from_dict(reply[1])
+
+
+def _contain(process: Any) -> int | None:
+    """On Windows, a job object that holds the worker and every process it starts, and kills
+    them all when it is closed (also when this process dies); None elsewhere or when the
+    system refuses (the worker then ends its multiprocessing children itself)."""
+    if sys.platform != "win32":
+        return None
+    try:  # pragma: no cover - Windows only
+        return _kill_on_close_job(int(process.sentinel))
+    except Exception:  # pragma: no cover - a job could not be created or assigned
+        return None
+
+
+def _kill_on_close_job(handle: int) -> int | None:  # pragma: no cover - Windows only
+    if sys.platform != "win32":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    class _Basic(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class _Extended(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _Basic),
+            ("IoInfo", ctypes.c_uint64 * 6),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+    kernel32.SetInformationJobObject.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+    ]
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    limits = _Extended()
+    limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    extended_limit_information = 9
+    if not kernel32.SetInformationJobObject(
+        job, extended_limit_information, ctypes.byref(limits), ctypes.sizeof(limits)
+    ) or not kernel32.AssignProcessToJobObject(job, handle):
+        kernel32.CloseHandle(job)
+        return None
+    return int(job)
+
+
+def _close_job(job: int) -> None:  # pragma: no cover - Windows only
+    if sys.platform != "win32":
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle(job)
 
 
 def _timeout_verdict(timeout: float) -> Verdict:
@@ -416,7 +525,13 @@ class SubprocessSession(Session):
             raise GraderLoadError(self._restart_error or "the grader could not be loaded again")
 
     def close(self) -> None:
+        """Stop the worker. Before that, ``info`` is updated with the libraries the grader
+        imported while it was graded."""
         if not self._closed:
+            if self._worker is not None:
+                current = self._worker.query_info(SOFT_GRACE_S)
+                if current is not None:
+                    self._info = _merged(self.info, current)
             self._drop(graceful=True)
             self._closed = True
 
@@ -428,8 +543,9 @@ class InProcessSession(Session):
 
     def __init__(self, spec: GraderSpec, config: RunConfig) -> None:
         super().__init__(spec, config)
+        self._before = top_level_modules()
         self._grader: Grader = load_grader(spec)
-        self._info = self._grader.info
+        self._info = complete_info(self._grader.info, spec, top_level_modules() - self._before)
 
     def _start(self, request: GradeRequest) -> tuple[threading.Event, list[Outcome]]:
         done = threading.Event()
@@ -489,10 +605,23 @@ class InProcessSession(Session):
 
     def restart(self) -> None:
         self._grader = load_grader(self.spec)
-        self._info = self._grader.info
+        self._info = complete_info(self._grader.info, self.spec, top_level_modules() - self._before)
 
     def close(self) -> None:
-        """Nothing to stop: the grader lives in this process."""
+        """Nothing to stop: the grader lives in this process. ``info`` is updated with the
+        libraries imported since the grader was loaded."""
+        current = complete_info(self.info, self.spec, top_level_modules() - self._before)
+        self._info = _merged(self.info, current)
+
+
+def _merged(first: GraderInfo, later: GraderInfo) -> GraderInfo:
+    """``first`` with the versions and provenance ``later`` adds or updates (a package's
+    digest covers the files loaded so far)."""
+    return replace(
+        first,
+        versions=merge_versions(first.versions, later.versions),
+        provenance=dict(sorted({**first.provenance, **later.provenance}.items())),
+    )
 
 
 def start_session(spec: GraderSpec, config: RunConfig) -> SubprocessSession | InProcessSession:

@@ -26,11 +26,21 @@ Protocol (private to the runner). The worker first sends ``("ready", info_dict)`
 - ``("die", GradeRequest, delay_s)``: starts the call and ends this process abruptly
   ``delay_s`` later (or as soon as the call returns, if sooner): the process the grader runs
   in dies during (or right after) a call. Used by the ``worker-death`` fault check.
-- ``("stop",)``: the worker returns.
+- ``("info",)``: answers ``("info", info_dict)``, the grader's info with the distributions of
+  every module imported since the grader started loading (graders that import a library only
+  when they are first called, or a parser that imports its backend on first use).
+- ``("stop",)``: the worker kills and joins the processes its grader started with
+  multiprocessing, then returns.
 
 The control pipe is a watchdog: when the parent closes its end (to stop a worker that does not
 answer) or the parent process dies, the worker kills the processes its grader started and
 exits at once. No signal handler is installed anywhere.
+
+Output: unless ``MISGRADE_WORKER_OUTPUT=1``, a worker silences what the grader writes, at the
+level of the file descriptors too (``os.dup2`` of ``os.devnull`` onto 1 and 2; on Windows the
+process's standard handles follow), so C extensions and the processes the grader starts, which
+inherit the descriptors, do not write into misgrade's report. On POSIX the worker leads its
+own process group, so the parent can end every process the grader left behind.
 """
 
 from __future__ import annotations
@@ -49,6 +59,7 @@ from typing import Any, Final
 
 from misgrade.adapters import ADAPTERS, Grader, load_grader
 from misgrade.adapters._common import describe_exception
+from misgrade.adapters._libraries import complete_info, top_level_modules
 from misgrade.errors import MisgradeError
 from misgrade.models import GradeRequest, GraderSpec
 
@@ -73,6 +84,9 @@ default, so it does not interleave with misgrade's report)."""
 
 def worker_main(spec: GraderSpec, conn: Connection, control: Connection | None = None) -> None:
     """Load the grader named by ``spec`` and serve requests on ``conn`` until told to stop."""
+    own_process = multiprocessing.parent_process() is not None
+    if own_process and control is not None:
+        _own_process_group()
     if control is not None:
         threading.Thread(
             target=_watchdog, args=(control,), name="misgrade-watchdog", daemon=True
@@ -81,20 +95,74 @@ def worker_main(spec: GraderSpec, conn: Connection, control: Connection | None =
         devnull = Path(os.devnull).open("w", encoding="utf-8")  # noqa: SIM115 - kept open
         sys.stdout = devnull
         sys.stderr = devnull
+        if own_process:
+            _silence_descriptors(devnull.fileno())
+    before = top_level_modules()
     try:
         if spec.adapter not in ADAPTERS:
             from misgrade._registry import load_plugins
 
             load_plugins("misgrade.adapters")
         grader = load_grader(spec)
+        loaded = complete_info(grader.info, spec, top_level_modules() - before)
     except MisgradeError as exc:
         conn.send(("load-error", _clip(str(exc))))
         return
     except Exception as exc:  # pragma: no cover - load_grader wraps every Exception
         conn.send(("load-error", _clip(describe_exception(exc))))
         return
-    conn.send(("ready", grader.info.to_dict()))
-    _serve(grader, conn)
+    conn.send(("ready", loaded.to_dict()))
+
+    def info() -> None:
+        current = complete_info(loaded, spec, top_level_modules() - before)
+        conn.send(("info", current.to_dict()))
+
+    try:
+        _serve(grader, conn, info)
+    finally:
+        if own_process:  # in a test's thread, the children are not the grader's
+            _end_children()
+
+
+def _silence_descriptors(devnull: int) -> None:
+    """Point file descriptors 1 and 2 (and, on Windows, the standard handles) at ``devnull``,
+    so what C extensions and child processes write is silenced too."""
+    for fd in (1, 2):
+        with contextlib.suppress(OSError):
+            os.dup2(devnull, fd)
+    if sys.platform == "win32":  # pragma: no cover - Windows only
+        _set_std_handles()
+
+
+def _set_std_handles() -> None:  # pragma: no cover - Windows only
+    """Make the process's standard output and error handles those of descriptors 1 and 2:
+    processes started without explicit handles get theirs from these."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    import msvcrt
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    for fd, which in ((1, -11), (2, -12)):  # STD_OUTPUT_HANDLE, STD_ERROR_HANDLE
+        with contextlib.suppress(OSError):
+            kernel32.SetStdHandle(which, ctypes.c_void_p(msvcrt.get_osfhandle(fd)))
+
+
+def _own_process_group() -> None:
+    """On POSIX, lead a process group of our own: the parent ends the whole group when it stops
+    the worker, processes the grader started and left behind included."""
+    setpgid = getattr(os, "setpgid", None)
+    if setpgid is not None:
+        with contextlib.suppress(OSError):
+            setpgid(0, 0)
+
+
+def _end_children() -> None:
+    """Kill and join the processes the grader started with multiprocessing (a pool it never
+    closed), so none outlives the worker."""
+    for child in _children():
+        with contextlib.suppress(Exception):
+            _kill(child)
 
 
 def grade_one(grader: Grader, request: GradeRequest) -> Outcome:
@@ -114,13 +182,14 @@ def _clip(message: str) -> str:
     return message if len(message) <= MAX_MESSAGE else message[: MAX_MESSAGE - 3] + "..."
 
 
-def _serve(grader: Grader, conn: Connection) -> None:
+def _serve(grader: Grader, conn: Connection, info: Callable[[], None] | None = None) -> None:
     handlers: dict[str, Callable[..., None]] = {
         "grade": lambda requests: _grade(grader, conn, requests),
         "concurrent": lambda requests, threads: _concurrent(grader, conn, requests, threads),
         "soft": lambda requests, timeout: _soft(grader, conn, requests, timeout),
         "kill-child": lambda request, timeout: _kill_child(grader, conn, request, timeout),
         "die": lambda request, delay: _die(grader, request, delay),
+        "info": info or (lambda: conn.send(("info", grader.info.to_dict()))),
     }
     while True:
         try:

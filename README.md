@@ -7,10 +7,11 @@
 **Conformance tests for the graders that ML training and evaluation depend on.**
 
 A grader decides whether a model's answer is right: an RLVR reward function or verifier (verl
-`compute_score`, TRL GRPO reward functions, PrimeIntellect `verifiers` rubrics), an eval answer
-extractor and scorer (lm-eval filters and metrics, Inspect scorers, simple-evals and lighteval
-extractors), an OpenAI grader or a promptfoo assertion, or any plain function
-`(answer, gold) -> score`. misgrade checks that it keeps its verdict on answers that mean the same
+`compute_score`, TRL GRPO reward functions, PrimeIntellect `verifiers` rubrics, Math-Verify), an
+eval answer extractor and scorer (lm-eval filters and metrics, Inspect scorers), an OpenAI
+grader or a promptfoo assertion, or any plain function `(answer, gold) -> score`; suites
+without an adapter (simple-evals, lighteval, OpenCompass) through a short wrapper for the
+`callable` adapter ([docs/adapters.md](docs/adapters.md#graders-without-an-adapter)). misgrade checks that it keeps its verdict on answers that mean the same
 as the gold, rejects answers that are provably wrong, and does not change its verdicts under
 runtime faults.
 
@@ -89,12 +90,14 @@ Also an MCP server, so a coding agent can audit the reward function it just wrot
 grader card, and a pre-commit hook. Outputs: a grader card (JSON, with a
 [schema](src/misgrade/schema/grader-card.schema.json)), an HTML report, JUnit, SARIF, an SVG badge,
 a ready-to-commit pytest file of minimized counterexamples, and suggested hardening patches.
-Exit codes: 0 ok, 1 the `--fail-on` gate failed, 2 usage, 3 the grader could not be loaded,
-4 internal error. Everything is in [docs/interfaces.md](docs/interfaces.md).
+Exit codes: 0 ok, 1 the `--fail-on` gate failed or no grader call returned a score, 2 usage,
+3 the grader could not be loaded, 4 internal error. Everything is in [docs/interfaces.md](docs/interfaces.md).
 
 Graders run in a separate process with timeouts that work the same on Linux, macOS and Windows.
 Adapters import no framework at install time (no torch, no ray); optional extras install them
-when you want misgrade to load a framework's own graders by name. misgrade makes no model calls
+when you want misgrade to load a framework's own graders by name (the `verl` extra installs
+verl's training stack, torch and ray included, and needs Python < 3.13; the `verl` adapter's
+`source` option loads verl's scorers from a checkout without it). misgrade makes no model calls
 and needs no API key.
 
 ## Is misgrade itself right?

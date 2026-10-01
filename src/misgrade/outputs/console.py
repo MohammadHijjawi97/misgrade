@@ -17,6 +17,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from misgrade.gate import nothing_measured
 from misgrade.models import AuditResult, CategoryRate, FindingKind
 from misgrade.outputs._common import (
     CATEGORY_INTERVALS,
@@ -132,6 +133,16 @@ def print_summary(result: AuditResult, console: Console, *, max_findings: int = 
 
     findings = ordered_findings(result.findings)
     if not findings:
+        nothing = nothing_measured(summary)
+        if nothing is not None:
+            console.print(
+                Text(
+                    f"Nothing was measured: {nothing.partition(', so')[0]} (the reasons are "
+                    "above), so the absence of findings says nothing about the grader.",
+                    style="bold red",
+                )
+            )
+            return
         console.print(
             Text(
                 f"No findings in {plural(summary.calls, 'grader call')}. That is what was "

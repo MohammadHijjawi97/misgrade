@@ -77,6 +77,7 @@ SIGNATURES: dict[str, list[str]] = {
     ],
     "misgrade.gate:parse_gate": ["text"],
     "misgrade.gate:evaluate_gate": ["gate", "summary", "*allow_unmeasured"],
+    "misgrade.gate:nothing_measured": ["summary"],
     "misgrade.card:build_card": ["result"],
     "misgrade.card:card_schema": [],
     "misgrade.outputs:write_outputs": ["result", "formats", "out_dir"],
@@ -112,6 +113,9 @@ SIGNATURES: dict[str, list[str]] = {
     "misgrade.api:poison_cases": ["items", "planned", "config"],
     "misgrade.selftest:run_graders": ["names", "*budget", "*seed", "*progress", "*audit"],
     "misgrade.adapters:in_process_only": ["spec"],
+    # added after the loadability pilot (design.md section 13)
+    "misgrade.api:latex_set_golds": ["items", "template"],
+    "misgrade.api:cases_digest": ["cases"],
 }
 
 

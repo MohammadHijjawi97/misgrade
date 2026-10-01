@@ -383,6 +383,10 @@ def test_grader_spec_and_info_round_trip() -> None:
     with_options = GraderInfo("g", "verl", "m:f", options={"data_source": "gsm8k"})
     assert with_options.to_dict()["options"] == {"data_source": "gsm8k"}
     assert GraderInfo.from_dict(with_options.to_dict()) == with_options
+    assert "provenance" not in info.to_dict()  # written only when there is some
+    pinned = GraderInfo("g", "trl", "trl.rewards:f", provenance={"trl": "git+https://x@abc"})
+    assert pinned.to_dict()["provenance"] == {"trl": "git+https://x@abc"}
+    assert GraderInfo.from_dict(pinned.to_dict()) == pinned
 
 
 def test_rates() -> None:

@@ -50,6 +50,14 @@ def test_card_validates(any_result: AuditResult) -> None:
     Draft202012Validator(card_schema()).validate(build_card(any_result))
 
 
+def test_a_card_with_provenance_validates() -> None:
+    result = sample_result()
+    pinned = replace(result.grader, provenance={"trl": "git+https://example.invalid/trl@abc"})
+    card = build_card(replace(result, grader=pinned))
+    assert card["grader"]["provenance"] == {"trl": "git+https://example.invalid/trl@abc"}
+    Draft202012Validator(card_schema()).validate(card)
+
+
 def test_card_fields() -> None:
     result = sample_result()
     card = build_card(result)

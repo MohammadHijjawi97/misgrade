@@ -122,8 +122,9 @@ All dataclasses are frozen. Everything serializes with `to_dict()` / `from_dict(
   its verdict; `finding_id = "<kind>:<case id>[@<fault>]"`; `shown` is the minimized case when
   there is one.
 - **`GraderSpec`** (adapter, target, options, name; picklable) and **`GraderInfo`** (name,
-  adapter, target, source `path:line`, library versions, and the spec's adapter options, so a
-  saved result can rebuild the grader exactly).
+  adapter, target, source `path:line`, the versions of the distributions behind the grader,
+  the spec's adapter options, so a saved result can rebuild the grader exactly, and the
+  provenance of code a version does not identify).
 - **`RunConfig`** (isolation, timeout, startup timeout, accept threshold, concurrency) and
   **`AuditConfig`** (answer type, template, budget, seed, include/exclude categories, search,
   minimize + budget, faults + budget, errors_as_reject, run).
@@ -225,8 +226,10 @@ Obligations:
 - Adapters import their framework only inside `load`, inside the worker; none at package
   import. Model-based graders (OpenAI `score_model`, promptfoo `llm-rubric`) are refused with a
   clear message: misgrade makes no model calls.
-- `GraderInfo.source` (`path:line` of the grading function when known) and `versions` (the
-  framework and math libraries that decide verdicts).
+- `GraderInfo.source` (`path:line` of the grading function when known), `versions` (every
+  installed distribution the grader's code comes from or imports while it is loaded and
+  graded) and `provenance` (VCS commit, install URL, or path, sha256 and git commit of code
+  that is not installed).
 - Fault checks: semantics in `runner/faults.py`; fault-phase observations carry the clean-run
   `reference`; poison calls have none. The decision whether a change counts is
   `models.fault_changed`, not B's.
@@ -731,3 +734,42 @@ What changed in the contract and in behaviour users see:
   file the tests read; the build-phase ownership lines, CHANGELOG markers, the `needs` marker
   and the CLI's `NotImplementedError` branch are gone; CLI options show their defaults and a
   seed line without `id` or `gold` says the field is missing.
+
+### After the loadability pilot (applied on `main`)
+
+Loading about twenty third-party graders through the adapters found gaps between what the
+adapters assumed and what the frameworks do. Each fix has a regression test with fakes shaped
+like the framework's API. What changed in the contract and in behaviour users see:
+
+- **Contract (models).** `GraderInfo.provenance` (`{name: origin}`; written to the result and
+  the card only when there is some; an optional `grader.provenance` property in the card
+  schema, no `card_version` bump). `ExitCode.GATE_FAILED` (1) also covers a run in which no
+  grader call returned a score, with or without `--fail-on`. `gate.nothing_measured(summary)`
+  (the rule `evaluate_gate` already applied), `api.latex_set_golds(items, template)` and
+  `api.cases_digest(cases)` (recorded as `environment["cases_sha256"]`, so results from two
+  environments can be checked to have graded the same cases) are pinned in
+  `tests/contract/test_interfaces.py`.
+- **What a result records.** `versions` is no longer a fixed list of grading libraries: every
+  installed distribution behind the grader is recorded (`adapters/_libraries.py`), matched to
+  modules by where they are installed; modules imported lazily by an attribute read and while
+  grading are included (the worker answers a new private `("info",)` message, which the
+  session sends before it stops the worker). `load_grader` reads two options for every
+  adapter, `sys_path` and `versions` (CLI `--path`, `--grader-version`), and removes them from
+  the spec the adapter sees; the runner records them with the adapter's options.
+- **Processes the grader starts.** In quiet mode the worker also redirects file descriptors 1
+  and 2 (and on Windows the standard handles), kills and joins its multiprocessing children
+  when it stops, runs in a kill-on-close job object on Windows and leads its own process group
+  on POSIX, which the parent kills after the worker ends.
+- **Adapters.** TRL's default format is decided from the loaded function; verl's detection of
+  `verl.*` module targets reads the function's parameters with `ast` and verl's `source`
+  option imports verl's scorers under bare parent packages; verifiers' `score_rollout(state)`
+  gets a populated state (`scoring` option); lm-eval gained `doc_fields`, `process_docs` and
+  `reference`, and detection through `include`; Inspect refuses `choice()` without the new
+  `solver` option, accepts `$import` values in `scorer_args`, and registered scorers from any
+  package are handed to it; the `callable` adapter gained `batch`, `result_key`, `scale` and
+  the built-in target `math-verify`.
+- **Items and summaries.** Set golds with bare braces are written `\{...\}` under math-mode
+  templates (the identity case is still `render_template(template, item.gold)`, of the
+  rewritten item); `--items` / `--exclude-items` filter items; every summary names the most
+  common reasons calls ended without a score, and says "nothing was measured" instead of "No
+  findings" when no call scored.

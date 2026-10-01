@@ -63,6 +63,7 @@ __all__ = [
     "Gate",
     "GateResult",
     "evaluate_gate",
+    "nothing_measured",
     "parse_gate",
 ]
 
@@ -254,13 +255,7 @@ def evaluate_gate(gate: Gate, summary: Summary, *, allow_unmeasured: bool = Fals
             count = _count(condition.metric, summary)
             if condition.holds(count):
                 held.append(f"{label}={count} {condition.op} {threshold}")
-    graded = summary.calls - summary.injected
-    no_scores = None
-    if graded > 0 and summary.errors >= graded:
-        no_scores = (
-            f"every grader call ({summary.errors} of {graded}) ended without a score, so "
-            "nothing was measured"
-        )
+    no_scores = nothing_measured(summary)
     reasons = list(held)
     if not allow_unmeasured:
         reasons += [f"{line}; an unmeasured condition fails the gate" for line in unmeasured]
@@ -273,6 +268,19 @@ def evaluate_gate(gate: Gate, summary: Summary, *, allow_unmeasured: bool = Fals
         no_scores=no_scores,
         reasons=tuple(reasons),
     )
+
+
+def nothing_measured(summary: Summary) -> str | None:
+    """Why nothing was measured when every grader call ended without a score (an error, a
+    timeout or a crash; the calls misgrade ended on purpose do not count), else None. Such a
+    run fails every gate, and the CLI exits 1 for it even without ``--fail-on``."""
+    graded = summary.calls - summary.injected
+    if graded > 0 and summary.errors >= graded:
+        return (
+            f"every grader call ({summary.errors} of {graded}) ended without a score, so "
+            "nothing was measured"
+        )
+    return None
 
 
 def _count_measured(metric: str, summary: Summary) -> bool:

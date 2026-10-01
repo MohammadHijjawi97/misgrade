@@ -42,6 +42,7 @@ from misgrade.adapters._callable import CallableAdapter
 from misgrade.adapters._common import INLINE_TARGET, is_in_process, register_in_process
 from misgrade.adapters._common import coerce_score as _coerce_score
 from misgrade.adapters._inspect import InspectAdapter
+from misgrade.adapters._libraries import prepare_spec
 from misgrade.adapters._lmeval import LmEvalAdapter
 from misgrade.adapters._openai import OpenAIAdapter
 from misgrade.adapters._promptfoo import PromptfooAdapter
@@ -135,10 +136,15 @@ def load_grader(spec: GraderSpec) -> Grader:
 
     Any failure (unknown adapter, import error, missing attribute) is raised as
     :class:`~misgrade.errors.GraderLoadError`.
+
+    Two options are read here for every adapter, and removed from the spec the adapter sees:
+    ``sys_path`` (a folder or a list of folders put first on ``sys.path`` before the grader is
+    imported, for graders in a repository that is not installed) and ``versions``
+    (``{name: version}`` entries recorded in ``GraderInfo.versions`` as given, by the runner).
     """
     try:
         adapter = ADAPTERS.get(spec.adapter)
-        return adapter.load(spec)
+        return adapter.load(prepare_spec(spec))
     except GraderLoadError:
         raise
     except MisgradeError as exc:

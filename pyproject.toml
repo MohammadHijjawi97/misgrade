@@ -56,14 +56,19 @@ mcp = ["mcp>=2.0"]
 # Hypothesis-driven search over compositions of transforms (a seeded random search is used
 # without it).
 search = ["hypothesis>=6.100"]
-# Frameworks whose built-in graders the adapters can load by name. Not needed to audit your own
-# function written for these frameworks: the adapters call it without importing the framework.
+# Frameworks whose built-in graders the adapters can load by name (`verl`, `trl.rewards:...`,
+# `inspect_ai.scorer:...`, lm-eval tasks, verifiers environments, the `math-verify` target). Not
+# needed to audit your own function written for these frameworks: the adapters call it without
+# importing the framework. `verl` installs verl's training stack (torch, ray, transformers, ...)
+# and needs Python < 3.13; the verl adapter's `source` option loads verl's scorers from a
+# checkout without it.
 verl = ["verl"]
 trl = ["trl"]
 inspect = ["inspect-ai"]
 lmeval = ["lm-eval"]
 verifiers = ["verifiers"]
-math-verify = ["math-verify"]
+# Math-Verify with the ANTLR runtime its LaTeX parser needs (as its README recommends).
+math-verify = ["math-verify[antlr4_13_2]"]
 
 [project.urls]
 Homepage = "https://github.com/MohammadHijjawi97/misgrade"

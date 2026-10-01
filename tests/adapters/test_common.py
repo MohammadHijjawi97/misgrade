@@ -31,8 +31,8 @@ from misgrade.adapters._common import (
     resolve_awaitable,
     source_location,
     template_variables,
-    versions_of,
 )
+from misgrade.adapters._libraries import record_libraries
 from misgrade.errors import ConfigError, GraderLoadError, MisgradeWarning
 
 # --- scores -------------------------------------------------------------------------------------
@@ -389,11 +389,14 @@ def test_source_location_and_display_path(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_versions_of_the_libraries_a_grader_uses() -> None:
     loaded = load_target(toy("exact"))
-    versions = versions_of(modules=[loaded.module], new_modules=["math_verify", "json"])
-    assert "sympy" in versions
-    assert versions["math-verify"] == "unknown"  # imported (as far as we know) but not installed
-    assert versions_of(modules=[None]) == {}
-    assert "sympy" in versions_of(modules=[sys.modules["sympy"]])
+    versions, provenance = record_libraries(
+        owners=[loaded.module], scanned=[loaded.module], new=["json"]
+    )
+    assert "sympy" in versions  # toys.py imports sympy
+    assert "json" not in versions  # the standard library is never recorded
+    assert provenance["toys"].startswith(display_path(TOYS))  # the grader's own file
+    assert record_libraries(owners=[None], scanned=[None]) == ({}, {})
+    assert "sympy" in record_libraries(scanned=[sys.modules["sympy"]])[0]
 
 
 def test_messages() -> None:

@@ -15,8 +15,8 @@ from misgrade.adapters._common import (
     resolve_awaitable,
     signature_of,
     source_location,
-    versions_of,
 )
+from misgrade.adapters._libraries import merge_versions, record_libraries
 from misgrade.models import GradeRequest, GraderInfo, GraderSpec
 
 __all__ = ["FunctionGrader", "detect_convention", "make_info"]
@@ -45,28 +45,28 @@ def make_info(
     libraries: Iterable[str] = (),
     versions: dict[str, str] | None = None,
 ) -> GraderInfo:
-    """The :class:`GraderInfo` of a grader: where its code is and which grading libraries (and
-    versions) it uses."""
+    """The :class:`GraderInfo` of a grader: where its code is, and the distributions (and
+    versions) it comes from and uses (:func:`misgrade.adapters._libraries.record_libraries`)."""
     modules = []
     if loaded is not None:
         modules.append(loaded.module)
     owner = getattr(obj, "__module__", None)
     if isinstance(owner, str):
         modules.append(sys.modules.get(owner))
-    found = versions_of(
-        modules=modules,
-        new_modules=loaded.new_modules if loaded is not None else (),
-        extra=libraries,
+    modules.extend(sys.modules.get(name) for name in libraries)
+    found, provenance = record_libraries(
+        owners=modules,
+        scanned=modules,
+        new=loaded.new_modules if loaded is not None else (),
     )
-    if versions:
-        found.update(versions)
     return GraderInfo(
         name=spec.display_name,
         adapter=adapter,
         target=spec.target,
         source=source if source is not None else (source_location(obj) if obj else None),
-        versions=dict(sorted(found.items())),
+        versions=merge_versions(found, versions or {}),
         options=dict(spec.options),
+        provenance=provenance,
     )
 
 
@@ -81,6 +81,14 @@ def _parameter_names(fn: Callable[..., Any]) -> list[str] | None:
     ]
 
 
+def _registered_type(obj: object) -> str | None:
+    """The type Inspect's registry gave an object (``__registry_info__``, a model or a
+    mapping with ``type``), read without importing Inspect."""
+    info = getattr(obj, "__registry_info__", None)
+    kind = info.get("type") if isinstance(info, dict) else getattr(info, "type", None)
+    return kind if isinstance(kind, str) else None
+
+
 def _is_async(fn: object) -> bool:
     if inspect.iscoroutinefunction(fn):
         return True
@@ -91,13 +99,17 @@ def detect_convention(fn: object) -> str | None:
     """The framework whose calling convention a function's parameter names follow, if they
     leave no doubt; None for a plain ``(answer, gold)`` callable.
 
+    - ``inspect``: an object Inspect registered as a scorer (a ``@scorer`` factory or the
+      scorer it returns: ``__registry_info__.type == "scorer"``), or an async function of
+      ``(state, target)``;
     - ``verl``: takes ``solution_str`` and ``ground_truth``;
     - ``trl``: its first parameter is ``completions`` (or ``prompts, completions``);
-    - ``inspect``: an async function of ``(state, target)``;
     - ``verifiers``: takes ``completion`` and one of ``parser``, ``state``, ``info``, ``task``.
     """
     if not callable(fn) or inspect.isclass(fn):
         return None
+    if _registered_type(fn) == "scorer":
+        return "inspect"
     names = _parameter_names(fn)
     if not names:
         return None

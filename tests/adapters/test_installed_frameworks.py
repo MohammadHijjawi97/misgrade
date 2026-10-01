@@ -57,7 +57,8 @@ def test_verl_builtin_scorer(install: Callable[..., ModuleType]) -> None:
     grader = load("verl", "verl:default", data_source="openai/gsm8k")
     assert grader.grade(request("42")) == 1.0
     assert calls == [{"data_source": "openai/gsm8k", "extra_info": None}]
-    assert grader.info.versions == {"verl": "0.0-fake"}
+    # A module named like a grading library that no installed distribution provides.
+    assert grader.info.versions["verl"] == "0.0-fake (not installed)"
 
 
 def test_trl_builtin_reward_is_conversational(install: Callable[..., ModuleType]) -> None:
@@ -67,7 +68,7 @@ def test_trl_builtin_reward_is_conversational(install: Callable[..., ModuleType]
     install("trl.rewards", accuracy_reward=accuracy_reward)
     grader = load("trl", "trl.rewards:accuracy_reward")
     assert grader.grade(request("42")) == 1.0
-    assert grader.info.versions == {"trl": "unknown"}
+    assert grader.info.versions["trl"] == "not installed"
 
 
 # --- verifiers ----------------------------------------------------------------------------------

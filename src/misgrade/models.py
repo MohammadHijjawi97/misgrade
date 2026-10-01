@@ -358,7 +358,8 @@ class ExitCode(IntEnum):
     OK = 0
     """The audit ran; no ``--fail-on`` condition was met (or none was given)."""
     GATE_FAILED = 1
-    """The audit ran and a ``--fail-on`` condition was met."""
+    """The audit ran and a ``--fail-on`` condition was met, or no grader call returned a score
+    (nothing was measured; with or without ``--fail-on``)."""
     USAGE = 2
     """Bad command-line arguments or options, or a missing optional dependency."""
     GRADER_ERROR = 3
@@ -1078,10 +1079,13 @@ class GraderInfo:
     """What the report says about the grader under test.
 
     ``source`` is ``path:line`` of the grading function when known (a SARIF location);
-    ``versions`` the versions of the libraries that decide its behaviour
-    (``{"math-verify": "0.8.0"}``); ``options`` the adapter options of the
-    :class:`GraderSpec` it was loaded from (JSON values), so the grader can be rebuilt exactly
-    from a saved result. ``to_dict`` writes ``options`` only when there are some.
+    ``versions`` the versions of the distributions the grader's code comes from and imports
+    while it is loaded and graded (``{"math-verify": "0.8.0"}``); ``options`` the adapter
+    options of the :class:`GraderSpec` it was loaded from (JSON values), so the grader can be
+    rebuilt exactly from a saved result; ``provenance`` where code comes from when a version
+    number does not identify it (``{"trl": "git+https://...@<commit>"}``, or the path, sha256
+    and git commit of code that is not installed). ``to_dict`` writes ``options`` and
+    ``provenance`` only when there are some.
     """
 
     name: str
@@ -1090,6 +1094,7 @@ class GraderInfo:
     source: str | None = None
     versions: Mapping[str, str] = field(default_factory=dict, hash=False)
     options: Mapping[str, Any] = field(default_factory=dict, hash=False)
+    provenance: Mapping[str, str] = field(default_factory=dict, hash=False)
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -1101,6 +1106,8 @@ class GraderInfo:
         }
         if self.options:
             data["options"] = dict(self.options)
+        if self.provenance:
+            data["provenance"] = dict(self.provenance)
         return data
 
     @classmethod
@@ -1108,6 +1115,7 @@ class GraderInfo:
         source = data.get("source")
         versions = _get(data, "versions", dict, "grader", default={})
         options = _get(data, "options", dict, "grader", default={})
+        provenance = _get(data, "provenance", dict, "grader", default={})
         return cls(
             name=_get(data, "name", str, "grader"),
             adapter=_get(data, "adapter", str, "grader"),
@@ -1115,6 +1123,7 @@ class GraderInfo:
             source=None if source is None else str(source),
             versions={str(key): str(value) for key, value in versions.items()},
             options={str(key): value for key, value in options.items()},
+            provenance={str(key): str(value) for key, value in provenance.items()},
         )
 
 

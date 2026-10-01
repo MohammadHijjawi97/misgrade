@@ -9,7 +9,7 @@ verl grader `C:\Users\Me\rewards\math rewards.py:compute_score` · 3 items, 10 c
 | False negatives | 1 of 2 equivalent answers rejected | 50.0% | 9.5% to 90.5% |
 | Fault checks | 3 of 4 verdicts changed under runtime faults | 75.0% | 30.1% to 95.4% |
 
-6 of 20 grader calls ended without a score (error, timeout or crash), left out of every rate; 1 call ended on purpose by the worker-death check (not counted as an error); 1 variant not evaluable (the gold answer of the item was not accepted).
+6 of 20 grader calls ended without a score (error, timeout or crash), left out of every rate; the most common reasons: 3x no answer within 10 s; 2x ValueError: bad "input" \<here\>\\u0000; 1x worker exited with code -9; 1 call ended on purpose by the worker-death check (not counted as an error); 1 variant not evaluable (the gold answer of the item was not accepted).
 
 Notes:
 

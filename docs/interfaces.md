@@ -42,7 +42,8 @@ misgrade mcp
 | --- | --- | --- |
 | `--type` | `auto` | `number`, `latex`, `interval`, `set`, `mc`, `bool`, `json`, `string`; `auto` uses every bundled type (and detection for untyped seed items) |
 | `--seeds FILE.jsonl` | the bundled items | your own gold items, one JSON object per line (below) |
-| `--template` | `plain` | the response format the grader expects: `plain`, `boxed`, `gsm8k`, `answer-tag`, `final-answer`, or a text with `{answer}` |
+| `--template` | `plain` | the response format the grader expects: `plain`, `boxed`, `gsm8k`, `answer-tag`, `final-answer`, or a text in which every literal `{answer}` is replaced by the answer and nothing else is interpreted (no escaping: the `boxed` preset is `oxed{{answer}}`, which gives `oxed{42}`; `misgrade list templates` shows what each preset gives) |
+| `--items IDS`, `--exclude-items IDS` | all | audit only, or leave out, these items: ids or shell-style patterns, comma-separated (`mc-00*,set-002`), for the bundled items or a `--seeds` file; a pattern that matches nothing is an error |
 | `--budget N` | 2000 | cases graded in the main and search phases together |
 | `--seed N` | 0 | same seed, same cases |
 | `--include` / `--exclude` | all | categories, comma-separated (`misgrade list categories`) |
@@ -55,6 +56,8 @@ misgrade mcp
 | `--isolation` | `subprocess` | `none` runs the grader in-process (lambdas, closures); a call there cannot be stopped, so the pathological cases and the `timeout` and `worker-death` checks are left out (the result's notes say so) |
 | `--errors-as-reject` | | count failed calls as rejections, as trainers that give 0 on an exception |
 | `--adapter`, `--option KEY=VALUE`, `--name` | | adapter and its options (VALUE read as JSON when it parses), display name |
+| `--path DIR` | | a folder put first on the grader's import path (repeatable; the `sys_path` option), for a grader in a repository that is not installed; `PYTHONPATH` reaches the worker too |
+| `--grader-version NAME=VERSION` | | recorded in the result's `grader.versions` as given (repeatable; the `versions` option), for code misgrade cannot identify |
 | `--format F,...` | `card,result` | `card`, `result`, `html`, `junit`, `sarif`, `badge`, `pytest`, `patches`, `markdown`, or `none` |
 | `--out DIR` | `misgrade-out` | where the formats are written |
 | `--fail-on EXPR` | | the gate, e.g. `fp_rate>0.01,self_validation_rate<1` |
@@ -81,12 +84,31 @@ A gold that misgrade's own reader cannot read as its type (`12 cm` as a `number`
 audited, but the operators that need its value do not apply to it, and the result's notes
 name it.
 
+A `set` gold written with bare braces (`{1, 2, 3}`, as the bundled items write them) is
+rewritten `\{1, 2, 3\}` when the template puts the answer in TeX math mode (`boxed`, `$...$`):
+there bare braces group and print nothing, so the identity case would be a list, not a set.
+The result's items and notes show the rewritten golds.
+
+#### Installing misgrade next to a grader
+
+The worker runs in the interpreter that runs misgrade, so misgrade is installed into the
+grader's environment, and with it its own dependencies: sympy, mpmath and rich (with
+markdown-it-py, mdurl and Pygments). Install it with the grader's versions as constraints
+(`pip freeze > constraints.txt`, then `pip install -c constraints.txt misgrade`) so that no
+grader dependency changes. A grader that behaves differently when an optional library is
+importable (a math grader that uses sympy when it is there) sees misgrade's sympy; the
+result's `environment` records the sympy and mpmath versions, and `grader.versions` every
+distribution the grader imported. misgrade builds and certifies the cases with that same sympy
+(misgrade supports sympy 1.12 and later): `environment.cases_sha256`, a digest of the
+main-phase cases (ids, responses, certificates), tells whether two results, from two
+environments, graded the same cases.
+
 ### Exit codes
 
 | Code | Meaning |
 | --- | --- |
-| 0 | the audit ran; the `--fail-on` gate passed (or none was given) |
-| 1 | the audit ran and the `--fail-on` gate failed: a condition held, a condition could not be measured, or no grader call returned a score (for `selftest`: a planted bug was missed or a clean grader had a finding) |
+| 0 | the audit ran; the `--fail-on` gate passed (or none was given) and some grader call returned a score |
+| 1 | the audit ran and the `--fail-on` gate failed: a condition held, a condition could not be measured, or no grader call returned a score; a run in which no grader call returned a score exits 1 without `--fail-on` too, since it measured nothing (for `selftest`: a planted bug was missed or a clean grader had a finding) |
 | 2 | bad arguments or options, an unreadable seed or result file, a missing optional dependency |
 | 3 | the grader could not be loaded |
 | 4 | misgrade itself failed (a bug: please report it with `misgrade version`) |

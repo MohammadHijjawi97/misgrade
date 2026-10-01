@@ -77,6 +77,11 @@
         "options": {
           "description": "The adapter options the grader was loaded with (present only when there are some).",
           "type": "object"
+        },
+        "provenance": {
+          "description": "Where the grader's code and libraries come from when a version number does not identify them: a VCS URL and commit, a file or directory URL, or the path, sha256 and git commit of code that is not installed (present only when there is some).",
+          "type": "object",
+          "additionalProperties": {"type": "string"}
         }
       }
     },

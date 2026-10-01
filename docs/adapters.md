@@ -23,15 +23,35 @@ standard-library module's, or the stem is not a module name (`my-rewards.py`). m
 issues a `MisgradeWarning`: a process pool the grader starts cannot import functions from such
 a module, so rename the file if the grader uses one.
 
+A file target puts only its own folder on `sys.path`. A grader in a repository that is not
+installed, whose files import their package by name (`from grading import util` in
+`grading/grader.py`), is named as a module (`grading.grader:grade_answer`) with the folder
+that contains the package on the import path: `--path DIR` (repeatable; the `sys_path`
+option, recorded in the result), or `PYTHONPATH`, which the worker inherits. The error for
+such a file says so.
+
 Without `--adapter`, every adapter except `callable` is asked whether it recognises the target
-(in name order; recognising must not import anything), and `callable` is the fallback. For a
-file, the `verl` adapter recognises a module-level `compute_score` whose parameters include
-`solution_str` and `ground_truth` (or that takes `**kwargs` and reads both): it reads the
-signature with `ast`, so the words elsewhere in the file (a helper's parameter) do not count. A
-Python callable whose parameter names follow a framework's convention gets that adapter
+(in name order; recognising must not import anything), and `callable` is the fallback:
+
+- `verl`: the targets `verl` and `verl:default`; a module of the `verl` package whose function
+  (`compute_score` by default) takes `solution_str` and `ground_truth`, read with `ast` from
+  the module's source (found without importing it; a function such as
+  `verl.utils.reward_score.math_verify:compute_score`, which takes `(model_output,
+  ground_truth)`, goes to `callable`); a file whose module-level `compute_score` takes them
+  (or takes `**kwargs` and reads both). Only the function's own parameters count, not the
+  words elsewhere in the file.
+- `trl`: targets in `trl`; `verifiers`: targets in `verifiers` and `load_environment`;
+  `inspect`: targets in `inspect_ai`, and a file function decorated with `@scorer`.
+- `lm-eval`: a YAML file with `metric_list`, `filter_list`, `output_type` or a `!function`
+  tag, in the file or along its `include` chain, or one with top-level `include` and `task`
+  keys (the per-subset files of many tasks).
+
+A Python callable whose parameter names follow a framework's convention gets that adapter
 (`solution_str` and `ground_truth`: verl; first parameter `completions`: TRL; async
 `(state, target)`: Inspect; `completion` with `parser`, `state`, `info` or `task`:
-verifiers); the `callable` adapter does the same when it loads such a function.
+verifiers), and so does an object Inspect registered as a scorer (a `@scorer` factory from
+any package: `__registry_info__.type == "scorer"`); the `callable` adapter does the same when
+it loads such an object.
 
 Lambdas, closures, bound methods, instances and functions defined in `__main__` cannot be
 imported by a spawned worker. They get an in-process spec (`in_process_only(spec)` is true)
@@ -41,7 +61,12 @@ that works only with `Isolation.NONE`; with the default `subprocess` isolation,
 section).
 
 Options (`--option KEY=VALUE`, `options=`) must be JSON-serializable: they are sent to the
-worker and recorded in the result. Unknown option names are errors.
+worker and recorded in the result. Unknown option names are errors. Two options are accepted
+for every adapter (and removed before the adapter sees the spec): `sys_path` (a folder or a
+list of folders put first on `sys.path` before the grader is imported; `--path`) and
+`versions` (`{"name": "version"}` entries recorded in `GraderInfo.versions` as given, for code
+misgrade cannot identify, such as a vendored copy of a library; `--grader-version
+NAME=VERSION`).
 
 ## The adapters
 
@@ -55,7 +80,23 @@ calls.
 `f(answer, gold) -> score`. Keyword parameters named `prompt`, `choices`, `meta` or
 `answer_type` receive those values (never the case id or the operator chain). Options:
 `argument_order` (`answer-gold`, or `gold-answer` for `verify(gold, answer)`-style
-functions), `kwargs` (constant keyword arguments). Async functions are awaited.
+functions), `kwargs` (constant keyword arguments), `batch` (`true`: call `f([answer], [gold])`,
+for evaluators that take lists of predictions and references), `result_key` (a dotted path to
+the score in a structured return value: `accuracy`, `details.0.correct`, `report.passed`; a
+one-element list is unwrapped first) and `scale` (a factor applied to the score: `0.01` for an
+evaluator that returns a percentage; mind the accept threshold, 0.5 by default). Async
+functions are awaited.
+
+The built-in target `math-verify` (also `math-verify:default`) is Hugging Face Math-Verify's
+documented two-step call, `verify(parse(gold), parse(answer))`, with the gold parsed in a LaTeX
+environment (`$<gold>$`) unless it already has one (needs `misgrade[math-verify]`). The
+`kwargs` option configures it: `gold_extraction` and `answer_extraction` (lists of `latex`,
+`expr`, `string`; default `["latex", "expr"]`), `parsing_timeout` and `verify_timeout` (the
+library's own timeouts in seconds, off by default: misgrade's per-call timeout stops a call
+that runs too long, the same way on every OS and from any thread),
+`wrap_gold`, and anything else `verify` takes (`float_rounding`, `numeric_precision`,
+`strict`, `allow_set_relation_comp`). The result records the effective values in
+`grader.options.kwargs`.
 
 ### `verl`
 
@@ -64,7 +105,17 @@ verl's reward managers call it; it may return a float or a dict with `"score"`.
 `data_source` comes from the item's `meta["data_source"]`, else the `data_source` option, else
 `"misgrade"`; `extra_info` merges the `extra_info` option and `meta["extra_info"]` (None when
 both are empty). A module or file without an attribute means its `compute_score`. The target
-`verl` (or `verl:default`) is verl's own `default_compute_score` (needs `misgrade[verl]`).
+`verl` (or `verl:default`) is verl's own `default_compute_score`.
+
+verl's scorers need only small libraries (numpy, sympy, pylatexenc, optionally math-verify),
+but importing them through `verl` first runs `verl/__init__.py` and `verl/utils/__init__.py`,
+which import verl's training stack. The `verl` extra (`pip install misgrade[verl]`) installs
+that stack: torch, ray, transformers and more, and verl requires Python < 3.13. To load the
+scorers without it, pass the option `source`: the folder of a verl checkout (or of verl's
+package; `true` for an installed verl). misgrade then imports `verl` and `verl.utils` as bare
+packages, without running their `__init__` files, and `verl.utils.reward_score` from that
+tree; `verl.__version__` is read from `verl/version/version` as verl itself reads it. A scorer
+that imports other parts of verl still needs what those parts import.
 
 ### `trl`
 
@@ -73,8 +124,12 @@ A GRPO reward function, called as `GRPOTrainer` calls it: by keyword, with one-e
 `columns` option, and the gold under `gold_column`: by default the first of `solution`,
 `answer`, `ground_truth`, `gold`, `reference`, `target`, `label` that the function names, else
 `solution`). `format`: `standard` (strings) or `conversational`
-(`[{"role": "assistant", "content": ...}]`; the default for `trl.rewards` functions). A
-returned `[None]` (TRL's "not applicable") is no score.
+(`[{"role": "assistant", "content": ...}]`). The default is decided from the loaded function,
+not from the target's text: `conversational` for a function defined in TRL (also when a file
+re-exports it) or whose `completions` parameter is annotated `list[list[dict...]]`, `standard`
+otherwise. When the format was not given and a call fails by indexing a string
+(`completion[0]["content"]` on a plain completion), the error says to pass
+`format=conversational`. A returned `[None]` (TRL's "not applicable") is no score.
 
 ### `verifiers`
 
@@ -84,30 +139,53 @@ passed by name, as a rubric passes them), a `Rubric` (its `score_rollout`, or it
 module's `load_environment(**env_args)` (the default attribute). `format`: `chat` (default;
 prompt and completion are message lists) or `completion` (strings). `parser`: an import path;
 by default the rubric's own, else `verifiers.Parser()` when verifiers is installed, else a
-stand-in whose `parse_answer` returns the last assistant message.
+stand-in whose `parse_answer` returns the last assistant message. A `score_rollout(state)`
+that takes only the rollout state (verifiers 0.3) gets the state a rollout would have built:
+`verifiers.types.State(input=RolloutInput(prompt, answer, info, example_id=0))` with
+`completion`, `task`, `trajectory` and `timing` when verifiers is installed, else a dict with
+the same keys; the reward it writes into the state is the score. `scoring`: `auto` (default:
+`score_rollout` when the rubric has one, else its reward functions and weights) or `funcs`
+(always the reward functions and weights).
 
 ### `inspect`
 
-An Inspect scorer `score(state, target)`, or a `@scorer` factory called with `scorer_args`.
-The state is a stand-in for `TaskState` with what text scorers read (`output.completion`,
-`messages`, `input_text`, `user_prompt`, `metadata`, `choices`, `target`, `store`); the target
-is Inspect's `Target` when Inspect is installed. The `Score` value is read with Inspect's
-`value_to_float()` when installed (a stand-in with the same rules otherwise, except that an
-unreadable value is an error instead of 0); a dict value needs `value_key`. Scorers whose name
-says they are model-graded are refused; `choice()` reads choices a solver marked and is not
-supported.
+An Inspect scorer `score(state, target)`, or a `@scorer` factory called with `scorer_args`. A
+`scorer_args` value `{"$import": "module:attr"}` is the object it names, imported in the
+worker, for arguments that are functions (`f1(answer_fn=...)`). The state is a stand-in for
+`TaskState` with what text scorers read (`output.completion`, `messages`, `input_text`,
+`user_prompt`, `metadata`, `choices`, `target`, `store`); the target is Inspect's `Target`
+when Inspect is installed. The `Score` value is read with Inspect's `value_to_float()` when
+installed (a stand-in with the same rules otherwise, except that an unreadable value is an
+error instead of 0); a dict value needs `value_key`. Scorers whose name says they are
+model-graded are refused.
+
+`choice()` does not read the response: it reads which choices the `multiple_choice()` solver
+marked. It is refused unless the option `solver` is `multiple_choice`: misgrade then builds
+Inspect's `Choices` from the item's options, runs the solver's own step after generation on
+the response (Inspect's `parse_answers` and `set_choices_based_on_generated_response`;
+`multiple_correct` for several answers; no shuffling) and calls the scorer on that state.
 
 ### `lm-eval`
 
 A `generate_until` task's grading: the filter pipeline (`filter_list`, the one named by
 `filter`, default the first) extracts the answer, then the metric (default the first of
 `metric_list`, with its keyword arguments) is called as lm-eval calls it,
-`metric(references=[gold], predictions=[answer], **kwargs)`. The item's gold is the reference
-(`doc_to_target` is not applied). A task `process_results` is called as
-`process_results(doc, [answer])` with `doc` built from the `doc` option, `meta["doc"]` and the
-gold under `gold_field` (default `answer`). Task files may be YAML (needs PyYAML; `include` and
-`!function module.name` are read as lm-eval reads them) or JSON. A Python target is a metric
-function, with the `filters` option.
+`metric(references=[reference], predictions=[answer], **kwargs)`. The reference is the item's
+gold, or the `reference` template over `{gold}` (`({gold})` for a task whose targets are
+written `(B)`); `doc_to_target` is not applied. A task `process_results` is called as
+`process_results(doc, [answer])`.
+
+The document passed to filters and `process_results` is built from the `doc` option,
+`meta["doc"]`, the reference under `gold_field` (default `answer`) and the `doc_fields`
+option: fields built per item from templates over `{gold}`, `{prompt}`, `{answer_type}` and
+`{item_id}` (replaced literally, so LaTeX braces need no escaping), or `{choices}` alone for the
+option list, e.g. `{"problem": "{prompt}", "solution": "$\\boxed{{gold}}$"}`. With
+`process_docs` `true`, the task's own `process_docs` runs on that document first, as lm-eval
+runs it before its filters and metrics see a document (on a `datasets.Dataset` when the
+datasets library is installed, else on a stand-in with `map` and `filter`). A call that reads a
+field the document does not have fails with an error that names the field and these options.
+Task files may be YAML (needs PyYAML; `include` and `!function module.name` are read as lm-eval
+reads them) or JSON. A Python target is a metric function, with the `filters` option.
 
 With lm-eval installed, its own filters and metrics are used. Without it (`implementation`
 `auto`), misgrade uses its re-implementation of lm-eval 0.4's `regex`, `take_first`,
@@ -162,9 +240,17 @@ timeouts work the same on Windows, macOS and Linux and from any thread.
   verdicts that say so.
 - Loading has its own deadline (`RunConfig.startup_timeout_s`); a load failure is a
   `GraderLoadError` before any case is graded.
-- The worker silences what the grader writes to `sys.stdout` and `sys.stderr` (prints and
-  warnings; output written by C extensions straight to the file descriptors is not caught);
-  set `MISGRADE_WORKER_OUTPUT=1` to see it.
+- The worker silences what the grader writes: `sys.stdout` and `sys.stderr` (prints and
+  warnings) and the file descriptors 1 and 2 under them (on Windows, the process's standard
+  handles too), so what C extensions write and what the processes the grader starts write
+  (they inherit those descriptors) does not end up in misgrade's report. Set
+  `MISGRADE_WORKER_OUTPUT=1` to see all of it.
+- No process the grader starts outlives its worker. When a worker stops, it kills and joins the
+  multiprocessing children the grader left; then the parent ends every remaining descendant:
+  on Windows the worker runs in a job object that kills its processes when it is closed (also
+  when misgrade itself dies), on POSIX the worker leads its own process group, which the
+  parent kills. This covers a child whose start failed half-way and a subprocess the grader
+  never waited for.
 - As with any `spawn` program, a script that starts an audit must guard it with
   `if __name__ == "__main__":`.
 
@@ -179,10 +265,51 @@ grader object again but not its module, so module-level state carries over from 
 to the next, including into the fault checks.
 
 `GraderInfo.source` is `path:line` of the grading function (relative to the working directory
-when inside it), or `path:1` of a configuration file. `GraderInfo.versions` lists the grading
-libraries the grader uses (those its module imports or references, among math-verify,
-latex2sympy2, sympy, verl, trl, verifiers, inspect-ai, lm-eval, rapidfuzz, ...), or says that
-misgrade's re-implementation ran.
+when inside it), or `path:1` of a configuration file.
+
+`GraderInfo.versions` maps every installed distribution behind the grader's verdicts to its
+version: the one its code comes from, the ones its module references, every one whose modules
+were imported while the grader was loaded (including what a package imports lazily when an
+attribute is read) and, as the session closes, every one imported while it was graded (a
+dispatcher that imports a scorer on its first call, a parser that imports its backend on
+first use). Modules are mapped to distributions by where their files are installed, so a
+module named like a library but loaded from another folder (a stub, a vendored copy) is not
+reported as that distribution; a grading library loaded that way is listed as
+`"<version> (not installed)"`. The standard library and misgrade itself are never listed; an
+adapter's own entry (misgrade's lm-eval re-implementation) and the `versions` option win.
+
+`GraderInfo.provenance` says where code comes from when a version number does not identify it:
+`git+<url>@<commit>` for a distribution installed from git (PEP 610 `direct_url.json`), the URL
+and hash of one installed from a file, the URL of one installed from a folder (with
+`editable` and the folder's git commit), and for code that is not installed (the grader's own
+file, a source tree on `sys.path`) its path, the sha256 of the files loaded from it and the
+commit of its git work tree (read from `.git`; uncommitted changes are not detected, the hash
+covers them). A result whose record is empty (nothing installed or on disk behind the grader)
+says so in its notes; `--grader-version NAME=VERSION` records what misgrade cannot see.
+
+## Graders without an adapter
+
+Evaluation suites whose scoring lives inside their own objects (simple-evals, lighteval,
+OpenCompass) have no adapter: audit them with the `callable` adapter and a short wrapper that
+builds the suite's objects from `(answer, gold)` (and `prompt`, `choices` by name), calls its
+scoring code unchanged and returns its score. Keep the wrapper generic (the same for every
+item), and pass constant settings through `kwargs`.
+
+- simple-evals: the scoring lines are inside each `Eval.__call__`. Build the eval without its
+  `__init__` (which downloads the dataset): `ev = MMLUEval.__new__(MMLUEval)`, set
+  `ev.examples` to the one item, call `ev(sampler)` with a sampler whose `__call__` returns the
+  response under test, and return the result's `score`.
+- lighteval: build the `Doc` (the item's choices and gold index) and the `ModelResponse` (the
+  response text), apply the pipeline's post-processing, call the metric's `compute_sample`
+  and read the one value of the returned `{metric_name: value}` dict.
+- OpenCompass: an evaluator's `score(predictions, references)` takes lists and returns a dict
+  with a percentage; a wrapper that instantiates the evaluator and calls it is all that is
+  needed, and with `batch`, `result_key` and `scale` (`--option batch=true --option
+  result_key=accuracy --option scale=0.01`) not even the conversion has to be written.
+
+A seed item outside a grader's documented contract (an option letter beyond the ones its
+template allows) can be left out with `--exclude-items` (or `--items`) instead of a custom seed
+file.
 
 ## Fault checks
 

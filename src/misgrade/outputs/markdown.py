@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from misgrade.gate import nothing_measured
 from misgrade.models import AuditResult, FindingKind, resolve_template
 from misgrade.outputs import register_writer
 from misgrade.outputs._common import (
@@ -79,6 +80,7 @@ def render_markdown(result: AuditResult, *, max_findings: int = MAX_MARKDOWN_FIN
         lines.append("")
 
     findings = ordered_findings(result.findings)
+    nothing = nothing_measured(summary)
     counts = dict.fromkeys(FindingKind, 0)
     for finding in findings:
         counts[finding.kind] += 1
@@ -129,6 +131,12 @@ def render_markdown(result: AuditResult, *, max_findings: int = MAX_MARKDOWN_FIN
             more = plural(len(findings) - max_findings, "more finding")
             lines += ["", f"{more} {'is' if more.startswith('1 ') else 'are'} in the full report."]
         lines.append("")
+    elif nothing is not None:
+        lines += [
+            f"**Nothing was measured:** {md_text(nothing.partition(', so')[0])} (the reasons "
+            "are above), so the absence of findings says nothing about the grader.",
+            "",
+        ]
     else:
         lines += [
             f"**No findings** in the {plural(summary.calls, 'grader call')} made. This says "

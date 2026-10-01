@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+import re
 from typing import Any, Final
 
 from misgrade.adapters._base import FunctionGrader, make_info
@@ -14,6 +16,7 @@ from misgrade.adapters._common import (
     describe,
     get_option,
     load_target,
+    signature_of,
 )
 from misgrade.errors import GraderLoadError
 from misgrade.models import GradeRequest, GraderSpec
@@ -35,9 +38,14 @@ class TrlAdapter:
 
     Options: ``gold_column`` (default: the first of :data:`GOLD_COLUMNS` the function names,
     else ``solution``), ``format`` (``standard``: completions are strings; ``conversational``:
-    ``[{"role": "assistant", "content": ...}]``; default conversational for TRL's own
-    ``trl.rewards`` functions, standard otherwise), ``columns`` (constant extra columns) and
-    ``kwargs`` (constant keyword arguments).
+    ``[{"role": "assistant", "content": ...}]``; the default is decided from the loaded
+    function as well as the target: conversational for a function defined in TRL (``trl.rewards``,
+    also when a file re-exports it), a target in TRL, or a function whose ``completions``
+    parameter is annotated ``list[list[dict...]]``; standard otherwise), ``columns`` (constant
+    extra columns) and ``kwargs`` (constant keyword arguments).
+
+    When the format was not given and a call under ``standard`` fails by indexing a string
+    (``completion[0]["content"]``), the error says to pass ``format=conversational``.
     """
 
     name = "trl"
@@ -76,13 +84,15 @@ class TrlAdapter:
             named[0] if named else GOLD_COLUMNS[0],
             adapter=self.name,
         )
-        default_format = "conversational" if spec.target.startswith("trl") else "standard"
+        from_trl = spec.target.startswith(("trl.", "trl:")) or _expects_conversational(fn)
+        default_format = "conversational" if from_trl else "standard"
         fmt = get_option(spec.options, "format", str, default_format, adapter=self.name)
         if fmt not in _FORMATS:
             raise GraderLoadError(f"trl adapter: format must be one of {', '.join(_FORMATS)}")
         columns = dict(get_option(spec.options, "columns", dict, {}, adapter=self.name))
         constants = dict(get_option(spec.options, "kwargs", dict, {}, adapter=self.name))
         conversational = fmt == "conversational"
+        hint = spec.options.get("format") is None and not conversational
 
         def call(request: GradeRequest) -> Any:
             prompt_text = request.prompt or ""
@@ -99,11 +109,42 @@ class TrlAdapter:
                 "completions": [completion],
                 **{key: [value] for key, value in row.items()},
             }
-            return fn(**bind_keywords(fn, available), **constants)
+            try:
+                return fn(**bind_keywords(fn, available), **constants)
+            except TypeError as exc:
+                if hint and "string indices must be integers" in str(exc):
+                    raise TypeError(
+                        f"{exc} (the completions were plain strings, TRL's standard format; "
+                        "a reward function written for conversational datasets reads "
+                        "completion[0]['content']: pass the option format=conversational)"
+                    ) from exc
+                raise
 
         return FunctionGrader(
             make_info(spec, self.name, obj=fn, loaded=loaded), call, convert=_convert
         )
+
+
+_CONVERSATIONAL_ANNOTATION: Final = re.compile(r"^list\[\s*list\[\s*dict\b")
+
+
+def _expects_conversational(fn: Any) -> bool:
+    """Whether a reward function reads conversational completions: TRL's own functions (they
+    handle both formats and default to conversational, as TRL's examples use them), and
+    functions whose ``completions`` parameter is annotated ``list[list[dict...]]``."""
+    target = inspect.unwrap(fn) if callable(fn) else fn
+    module = getattr(target, "__module__", None) or ""
+    if module == "trl" or module.startswith("trl."):
+        return True
+    sig = signature_of(fn)
+    if sig is None or "completions" not in sig.parameters:
+        return False
+    annotation = sig.parameters["completions"].annotation
+    if annotation is inspect.Parameter.empty:
+        return False
+    text = annotation if isinstance(annotation, str) else str(annotation)
+    text = re.sub(r"\btyping\.", "", text).replace("List[", "list[").replace("Dict[", "dict[")
+    return bool(_CONVERSATIONAL_ANNOTATION.match(text.strip()))
 
 
 def _convert(raw: Any) -> float:

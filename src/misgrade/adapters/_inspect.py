@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import ast
 import importlib
 import inspect
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Final, overload
 
 from misgrade.adapters._base import FunctionGrader, make_info
@@ -16,15 +18,20 @@ from misgrade.adapters._common import (
     describe_exception,
     get_option,
     load_target,
+    parse_target,
     signature_of,
 )
-from misgrade.errors import GraderLoadError
+from misgrade.errors import ConfigError, GraderLoadError
 from misgrade.models import GradeRequest, GraderSpec
 
 __all__ = ["InspectAdapter", "SimpleTarget", "value_to_float"]
 
-_OPTIONS = ("scorer_args", "value_key")
+_OPTIONS = ("scorer_args", "value_key", "solver", "multiple_correct")
 _MODEL_GRADED: Final = ("model_graded", "llm_grader", "model_scorer")
+_SOLVERS: Final = ("multiple_choice",)
+_MARKED_CHOICES: Final = ("inspect_ai.scorer._choice",)
+"""Modules of scorers that read the choices a solver marked, not the response text."""
+_IMPORT_KEY: Final = "$import"
 
 
 @dataclass(frozen=True)
@@ -70,7 +77,7 @@ class _State:
     output: _Output
     messages: list[_Message]
     metadata: dict[str, Any]
-    choices: list[_Choice]
+    choices: Any
     target: Any
     sample_id: str
     epoch: int = 1
@@ -139,15 +146,40 @@ def value_to_float(value: Any) -> float:
 class InspectAdapter:
     """An Inspect AI scorer, called with a ``TaskState`` stand-in whose ``output.completion`` is
     the response and a ``Target`` holding the gold. The target may name the scorer or a
-    ``@scorer`` factory (called with the ``scorer_args`` option). The ``Score``'s value is read
-    with Inspect's ``value_to_float`` (Inspect's own when installed); a dict value needs the
-    ``value_key`` option. Model-graded scorers are refused: misgrade makes no model calls."""
+    ``@scorer`` factory (called with the ``scorer_args`` option; a value
+    ``{"$import": "module:attr"}`` is that object, imported in the worker, for arguments that
+    are functions). The ``Score``'s value is read with Inspect's ``value_to_float`` (Inspect's
+    own when installed); a dict value needs the ``value_key`` option. Model-graded scorers are
+    refused: misgrade makes no model calls.
+
+    A scorer that reads the choices a solver marked (Inspect's ``choice()``) needs the option
+    ``solver=multiple_choice``: misgrade then runs the ``multiple_choice()`` solver's own step
+    after generation on the response (Inspect's ``parse_answers`` and
+    ``set_choices_based_on_generated_response``, with ``multiple_correct``) over Inspect's
+    ``Choices`` built from the item's options, and calls the scorer on that state. Without the
+    option such a scorer is refused, since it could accept no response.
+
+    Recognised without ``--adapter``: targets in ``inspect_ai``, and a file function decorated
+    with ``@scorer`` (read with :mod:`ast`); the ``callable`` adapter also hands over any
+    object Inspect registered as a scorer (``@scorer`` factories in other packages)."""
 
     name = "inspect"
     description = "Inspect AI scorer: async score(state, target) -> Score, or a @scorer factory"
 
     def sniff(self, target: str) -> bool:
-        return target.startswith(("inspect_ai.", "inspect_ai:"))
+        if target.startswith(("inspect_ai.", "inspect_ai:")):
+            return True
+        try:
+            ref = parse_target(target)
+        except ConfigError:
+            return False
+        if ref.kind != "file" or ref.attr is None or "." in ref.attr:
+            return False
+        try:
+            source = Path(ref.location).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False
+        return _decorated_as_scorer(source, ref.attr)
 
     def load(self, spec: GraderSpec) -> FunctionGrader:
         _refuse_model_graded(spec.target)
@@ -165,8 +197,19 @@ class InspectAdapter:
         check_options(spec.options, _OPTIONS, adapter=self.name)
         obj = loaded.obj
         _refuse_model_graded(getattr(obj, "__name__", ""))
-        scorer_args = dict(get_option(spec.options, "scorer_args", dict, {}, adapter=self.name))
+        scorer_args = {
+            key: _imported(value)
+            for key, value in get_option(
+                spec.options, "scorer_args", dict, {}, adapter=self.name
+            ).items()
+        }
         value_key = get_option(spec.options, "value_key", str, None, adapter=self.name)
+        solver = get_option(spec.options, "solver", str, None, adapter=self.name)
+        if solver is not None and solver not in _SOLVERS:
+            raise GraderLoadError(f"inspect adapter: solver must be one of {', '.join(_SOLVERS)}")
+        multiple_correct = get_option(
+            spec.options, "multiple_correct", bool, False, adapter=self.name
+        )
         if _is_scorer(obj):
             scorer = obj
         elif callable(obj) and not inspect.isclass(obj):
@@ -183,11 +226,22 @@ class InspectAdapter:
                 )
         else:
             raise GraderLoadError(f"{spec.target} is {describe(obj)}, not an Inspect scorer")
+        if solver is None and _reads_marked_choices(obj, scorer):
+            raise GraderLoadError(
+                f"{spec.target} scores the choices a multiple_choice() solver marked, not the "
+                "response text, so without a solver it can accept no response: pass the option "
+                "solver=multiple_choice (misgrade then marks them from the response with "
+                "Inspect's own parser; multiple_correct=true for several answers)"
+            )
+        mark = _marking_step(multiple_correct) if solver is not None else None
         make_target, to_float = _inspect_parts()
 
         def call(request: GradeRequest) -> Any:
             target = make_target(request.gold)
-            return scorer(_state(request, target), target)
+            state = _state(request, target)
+            if mark is not None:
+                mark(state, request)
+            return scorer(state, target)
 
         def convert(raw: Any) -> float:
             if raw is None:
@@ -204,6 +258,71 @@ class InspectAdapter:
             return to_float(value)
 
         return FunctionGrader(make_info(spec, self.name, obj=obj, loaded=loaded), call, convert)
+
+
+def _imported(value: Any) -> Any:
+    """A ``scorer_args`` value with every ``{"$import": "module:attr"}`` replaced by the object
+    it names (in lists and dicts too)."""
+    if isinstance(value, Mapping):
+        if set(value) == {_IMPORT_KEY}:
+            path = value[_IMPORT_KEY]
+            if not isinstance(path, str):
+                raise GraderLoadError(
+                    f"inspect adapter: {_IMPORT_KEY} needs 'module:attr', got {describe(path)}"
+                )
+            return load_target(path, what="scorer argument").obj
+        return {key: _imported(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_imported(item) for item in value]
+    return value
+
+
+def _decorated_as_scorer(source: str, name: str) -> bool:
+    """Whether the module-level function ``name`` in ``source`` is decorated with ``@scorer``
+    (``@scorer``, ``@scorer(...)``, ``@inspect_ai.scorer.scorer(...)``), read with :mod:`ast`."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return False
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            for decorator in node.decorator_list:
+                called = decorator.func if isinstance(decorator, ast.Call) else decorator
+                if (isinstance(called, ast.Name) and called.id == "scorer") or (
+                    isinstance(called, ast.Attribute) and called.attr == "scorer"
+                ):
+                    return True
+            return False
+    return False
+
+
+def _reads_marked_choices(*objects: object) -> bool:
+    return any(getattr(obj, "__module__", None) in _MARKED_CHOICES for obj in objects)
+
+
+def _marking_step(multiple_correct: bool) -> Callable[[Any, GradeRequest], None]:
+    """The ``multiple_choice()`` solver's step after generation, from Inspect itself."""
+    try:
+        solver_module = importlib.import_module("inspect_ai.solver._multiple_choice")
+        state_module = importlib.import_module("inspect_ai.solver._task_state")
+        parse_answers = solver_module.parse_answers
+        set_choices = solver_module.set_choices_based_on_generated_response
+        choices_class = state_module.Choices
+    except (ImportError, AttributeError) as exc:
+        raise GraderLoadError(
+            "inspect adapter: solver=multiple_choice uses Inspect's own answer parsing, which "
+            f"needs Inspect: pip install misgrade[inspect] ({describe_exception(exc)})"
+        ) from exc
+
+    def mark(state: Any, request: GradeRequest) -> None:
+        if not request.choices:
+            raise ValueError("solver=multiple_choice needs items with choices (an mc item)")
+        state.choices = choices_class(list(request.choices))
+        answers = parse_answers(state, multiple_correct)
+        if answers:
+            set_choices(state=state, answers=answers)
+
+    return mark
 
 
 def _refuse_model_graded(name: str) -> None:

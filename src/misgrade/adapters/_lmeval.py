@@ -6,7 +6,7 @@ from __future__ import annotations
 import importlib
 import re
 import string
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
 
@@ -36,9 +36,17 @@ _OPTIONS = (
     "metric",
     "metric_kwargs",
     "doc",
+    "doc_fields",
     "gold_field",
+    "reference",
+    "process_docs",
     "implementation",
 )
+_SLOTS: Final = ("{gold}", "{prompt}", "{answer_type}", "{item_id}")
+"""What the ``reference`` and ``doc_fields`` templates replace (literally, nothing else is
+interpreted, so LaTeX braces need no escaping); a ``doc_fields`` value that is exactly
+``{choices}`` is the item's option texts as a list."""
+_TASK_MARKERS: Final = ("metric_list", "filter_list", "output_type", "!function")
 _IMPLEMENTATIONS = ("auto", "lm-eval", "misgrade")
 _METRIC_ENTRY_KEYS: Final = frozenset({"metric", "aggregation", "higher_is_better"})
 _REIMPLEMENTED: Final = "not installed; misgrade's re-implementation of lm-eval 0.4 filters"
@@ -167,10 +175,21 @@ class LmEvalAdapter:
     Options: ``filter`` (which ``filter_list`` pipeline, default the first), ``filters`` (a
     list of steps ``{"function": "regex", "regex_pattern": ...}``; a ``function`` may also be an
     import path), ``metric`` (default the first in ``metric_list``), ``metric_kwargs``, ``doc``
-    and ``gold_field`` (the document passed to filters and ``process_results``, with the gold
-    under ``gold_field``, default ``answer``), ``implementation`` (``auto``: lm-eval's own
-    filters and metrics when it is installed, else misgrade's re-implementation of the 0.4
-    text filters and ``exact_match``; ``lm-eval`` or ``misgrade`` to force one).
+    and ``gold_field`` (the document passed to filters and ``process_results``, with the
+    reference under ``gold_field``, default ``answer``), ``reference`` (a template over
+    ``{gold}`` that maps the item's gold to the task's reference form, e.g. ``({gold})`` for
+    targets written ``(B)``; the reference is what the metric compares with and what
+    ``gold_field`` holds), ``doc_fields`` (document fields built per item from templates over
+    ``{gold}``, ``{prompt}``, ``{answer_type}``, ``{item_id}``, or ``{choices}`` for the option
+    list, e.g. ``{"problem": "{prompt}", "solution": "$\\boxed{{gold}}$"}``),
+    ``process_docs`` (``true``: run the task's own ``process_docs`` on the document, as lm-eval
+    does before its filters and ``process_results`` see it), ``implementation`` (``auto``:
+    lm-eval's own filters and metrics when it is installed, else misgrade's re-implementation
+    of the 0.4 text filters and ``exact_match``; ``lm-eval`` or ``misgrade`` to force one).
+
+    Recognised without ``--adapter``: a YAML file with ``metric_list``, ``filter_list``,
+    ``output_type`` or a ``!function`` tag, also through its ``include`` chain, and one with
+    top-level ``include`` and ``task`` keys (read as text; nothing is imported).
     """
 
     name = "lm-eval"
@@ -182,11 +201,7 @@ class LmEvalAdapter:
         lowered = target.lower()
         if not lowered.endswith((".yaml", ".yml")):
             return False
-        try:
-            text = Path(target).read_text(encoding="utf-8")[:200_000]
-        except OSError:
-            return False
-        return any(key in text for key in ("metric_list", "filter_list", "output_type"))
+        return _looks_like_task(Path(target))
 
     def load(self, spec: GraderSpec) -> FunctionGrader:
         check_options(spec.options, _OPTIONS, adapter=self.name)
@@ -218,21 +233,31 @@ class LmEvalAdapter:
             metric_fn = _metric_function(metric_name, lm_eval)
         base_doc = dict(get_option(options, "doc", dict, {}, adapter=self.name))
         gold_field = get_option(options, "gold_field", str, "answer", adapter=self.name)
+        reference = get_option(options, "reference", str, "{gold}", adapter=self.name)
+        doc_fields = dict(get_option(options, "doc_fields", dict, {}, adapter=self.name))
+        process_docs = _process_docs(task, options, spec.target)
 
         def call(request: GradeRequest) -> Any:
-            doc = {**base_doc, **dict(request.meta.get("doc") or {}), gold_field: request.gold}
-            resps: Any = [[request.response]]
-            for step in filters:
-                resps = list(step(resps, [doc]))
-            answer = resps[0]
-            while isinstance(answer, list) and answer:
-                answer = answer[0]
-            if process_results is not None:
-                scores = process_results(doc, [answer])
-                return _pick(scores, metric_name)
-            assert metric_fn is not None
-            result = metric_fn(references=[request.gold], predictions=[answer], **metric_kwargs)
-            return _pick(result, metric_name)
+            gold = _fill(reference, request)
+            doc = {**base_doc, **dict(request.meta.get("doc") or {}), gold_field: gold}
+            doc.update({key: _fill(value, request) for key, value in doc_fields.items()})
+            if process_docs is not None:
+                doc = _run_process_docs(process_docs, doc)
+            try:
+                resps: Any = [[request.response]]
+                for step in filters:
+                    resps = list(step(resps, [doc]))
+                answer = resps[0]
+                while isinstance(answer, list) and answer:
+                    answer = answer[0]
+                if process_results is not None:
+                    scores = process_results(doc, [answer])
+                    return _pick(scores, metric_name)
+                assert metric_fn is not None
+                result = metric_fn(references=[gold], predictions=[answer], **metric_kwargs)
+                return _pick(result, metric_name)
+            except KeyError as exc:
+                raise _missing_field(exc, doc) from exc
 
         versions = (
             {"lm-eval": _version("lm-eval")} if lm_eval is not None else {"lm-eval": _REIMPLEMENTED}
@@ -265,6 +290,146 @@ class LmEvalAdapter:
         if not callable(loaded.obj):
             raise GraderLoadError(f"{spec.target} is {describe(loaded.obj)}, not a metric function")
         return {}, None, loaded.obj
+
+
+def _looks_like_task(path: Path, depth: int = 0) -> bool:
+    """Whether a YAML file reads as an lm-eval task, from its text and the text of the files
+    its ``include`` names (nothing is parsed or imported)."""
+    try:
+        text = path.read_text(encoding="utf-8")[:200_000]
+    except (OSError, UnicodeDecodeError):
+        return False
+    if any(marker in text for marker in _TASK_MARKERS):
+        return True
+    include = re.search(r"""^include:[ \t]*["']?([^"'#\r\n]+?)["']?[ \t]*(?:#.*)?$""", text, re.M)
+    if include is None:
+        return False
+    if re.search(r"^task:", text, re.M):
+        return True
+    return depth < 5 and _looks_like_task(path.parent / include.group(1).strip(), depth + 1)
+
+
+class DocFieldError(KeyError):
+    """A task read a document field the document built for the call does not have."""
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if self.args else ""
+
+
+def _missing_field(exc: KeyError, doc: Mapping[str, Any]) -> KeyError:
+    key = exc.args[0] if exc.args else None
+    if not isinstance(key, str) or key in doc:
+        return exc
+    return DocFieldError(
+        f"the task reads doc[{key!r}], which the document misgrade built does not have "
+        f"(it has: {', '.join(sorted(map(str, doc))) or 'nothing'}); give it with the "
+        "doc_fields option (a template over {gold}, {prompt}, ...), and set process_docs=true "
+        "when the task derives it in process_docs"
+    )
+
+
+def _fill(template: Any, request: GradeRequest) -> Any:
+    """A ``reference`` or ``doc_fields`` value for one item: the slots of a string replaced
+    literally; ``{choices}`` alone is the option list; other values unchanged."""
+    if not isinstance(template, str):
+        return template
+    if template == "{choices}":
+        return list(request.choices or ())
+    values = {
+        "{gold}": request.gold,
+        "{prompt}": request.prompt or "",
+        "{answer_type}": request.answer_type.value,
+        "{item_id}": request.item_id,
+    }
+    pattern = "|".join(re.escape(slot) for slot in _SLOTS)
+    return re.sub(pattern, lambda match: values[match.group()], template)
+
+
+def _process_docs(
+    task: Mapping[str, Any], options: Mapping[str, Any], target: str
+) -> Callable[[Any], Any] | None:
+    wanted = get_option(options, "process_docs", bool, False, adapter="lm-eval")
+    if not wanted:
+        return None
+    found = task.get("process_docs")
+    if not callable(found):
+        raise GraderLoadError(
+            f"{target}: process_docs=true, but the task has no process_docs function "
+            "(in YAML, process_docs: !function module.name)"
+        )
+    return found  # type: ignore[no-any-return]
+
+
+class _Rows:
+    """Stands in for a ``datasets.Dataset`` of documents when the datasets library is not
+    installed: ``map`` (merging the returned fields, ``remove_columns``, ``with_indices``),
+    ``filter``, iteration, ``len`` and indexing, which is what tasks' ``process_docs`` use."""
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self._rows = rows
+
+    def map(
+        self,
+        function: Callable[..., Any],
+        *,
+        with_indices: bool = False,
+        batched: bool = False,
+        remove_columns: str | list[str] | None = None,
+        **_: Any,
+    ) -> _Rows:
+        if batched:
+            raise GraderLoadError(
+                "the task's process_docs maps in batches, which needs the datasets library: "
+                "pip install datasets"
+            )
+        dropped = [remove_columns] if isinstance(remove_columns, str) else remove_columns or []
+        out = []
+        for index, row in enumerate(self._rows):
+            changed = function(row, index) if with_indices else function(row)
+            new = {key: value for key, value in row.items() if key not in dropped}
+            new.update(dict(changed or {}))
+            out.append(new)
+        return _Rows(out)
+
+    def filter(
+        self, function: Callable[..., Any], *, with_indices: bool = False, **_: Any
+    ) -> _Rows:
+        return _Rows(
+            [
+                row
+                for index, row in enumerate(self._rows)
+                if (function(row, index) if with_indices else function(row))
+            ]
+        )
+
+    @property
+    def column_names(self) -> list[str]:
+        return list(self._rows[0]) if self._rows else []
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        return iter(self._rows)
+
+    def __len__(self) -> int:
+        return len(self._rows)
+
+    def __getitem__(self, key: int | str) -> Any:
+        if isinstance(key, str):
+            return [row[key] for row in self._rows]
+        return self._rows[key]
+
+
+def _run_process_docs(process_docs: Callable[[Any], Any], doc: dict[str, Any]) -> dict[str, Any]:
+    """The task's ``process_docs`` applied to one document: on a ``datasets.Dataset`` when the
+    datasets library is installed (as lm-eval runs it), else on :class:`_Rows`."""
+    try:
+        datasets = importlib.import_module("datasets")
+        rows: Any = datasets.Dataset.from_list([doc])
+    except ImportError:
+        rows = _Rows([dict(doc)])
+    docs = [dict(row) for row in process_docs(rows)]
+    if len(docs) != 1:
+        raise ValueError(f"the task's process_docs returned {len(docs)} documents for one")
+    return docs[0]
 
 
 def _lm_eval(implementation: str) -> Any:

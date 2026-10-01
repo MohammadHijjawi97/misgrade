@@ -182,6 +182,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; }
 <p class="note">
 A <strong>finding</strong> is an observed verdict that differs from what the case's certificate requires (or, under a fault check, from the clean run). Certificates are established by construction, a computer algebra system or a structural comparison, never by the grader under test. Rates count the main phase only (10 single-operator cases on 3 items, 21 grader calls in all). This report says what was tried and observed; it does not say the grader is correct.
 <br>6 of 20 grader calls ended without a score (error, timeout or crash), left out of every rate.
+<br>The most common reasons: 3x no answer within 10 s; 2x ValueError: bad &quot;input&quot; &lt;here&gt;\u0000; 1x worker exited with code -9.
 <br>1 call ended on purpose by the worker-death check (not counted as an error).
 <br>1 variant not evaluable (the gold answer of the item was not accepted).
 <br>Note: fault check not run: concurrency (the fault budget of 3 calls was too small)

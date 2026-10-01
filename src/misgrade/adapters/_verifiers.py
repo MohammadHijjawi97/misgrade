@@ -11,6 +11,7 @@ from typing import Any, Final
 from misgrade.adapters._base import FunctionGrader, make_info
 from misgrade.adapters._common import (
     Loaded,
+    accepted_keywords,
     bind_keywords,
     check_options,
     coerce_score,
@@ -26,8 +27,10 @@ from misgrade.models import GradeRequest, GraderSpec
 
 __all__ = ["PlainParser", "VerifiersAdapter"]
 
-_OPTIONS = ("format", "env_args", "kwargs", "parser")
+_OPTIONS = ("format", "env_args", "kwargs", "parser", "scoring")
 _FORMATS = ("chat", "completion")
+_SCORINGS = ("auto", "funcs")
+_ROLLOUT_FIELDS: Final = frozenset({"prompt", "completion", "answer", "task", "info"})
 ENTRY_POINT: Final = "load_environment"
 
 
@@ -57,7 +60,13 @@ class VerifiersAdapter:
     Options: ``format`` (``chat``, the default: prompt and completion are message lists;
     ``completion``: plain strings), ``env_args`` (for ``load_environment``), ``parser``
     (``module:attr`` of a parser or a zero-argument factory; default: ``verifiers.Parser()``
-    when verifiers is installed, else :class:`PlainParser`) and ``kwargs``.
+    when verifiers is installed, else :class:`PlainParser`), ``scoring`` (``auto``: the
+    rubric's ``score_rollout`` when it has one, else its reward functions and weights;
+    ``funcs``: always the reward functions and weights) and ``kwargs``.
+
+    A ``score_rollout(state)`` that takes only the rollout state (verifiers 0.3) gets a state
+    holding the prompt, completion, answer, task and info (``verifiers.types.State`` when
+    verifiers is installed); the reward it writes into the state is the score.
     """
 
     name = "verifiers"
@@ -84,6 +93,11 @@ class VerifiersAdapter:
             raise GraderLoadError(f"verifiers adapter: format must be one of {', '.join(_FORMATS)}")
         constants = dict(get_option(spec.options, "kwargs", dict, {}, adapter=self.name))
         env_args = dict(get_option(spec.options, "env_args", dict, {}, adapter=self.name))
+        scoring = get_option(spec.options, "scoring", str, "auto", adapter=self.name)
+        if scoring not in _SCORINGS:
+            raise GraderLoadError(
+                f"verifiers adapter: scoring must be one of {', '.join(_SCORINGS)}"
+            )
         obj = loaded.obj
         if _is_entry_point(obj, spec):
             try:
@@ -98,7 +112,7 @@ class VerifiersAdapter:
         chat = fmt == "chat"
         source_obj: object = obj
         if rubric is not None and _is_rubric(rubric):
-            scorer = _rubric_scorer(rubric, parser, constants)
+            scorer = _rubric_scorer(rubric, parser, constants, use_funcs=scoring == "funcs")
             funcs = _reward_funcs(rubric)
             source_obj = funcs[0] if funcs else rubric
         elif callable(obj) and not inspect.isclass(obj):
@@ -178,12 +192,20 @@ def _function_scorer(
 
 
 def _rubric_scorer(
-    rubric: Any, parser: Any, constants: Mapping[str, Any]
+    rubric: Any, parser: Any, constants: Mapping[str, Any], *, use_funcs: bool = False
 ) -> Callable[[dict[str, Any]], Any]:
     score_rollout = getattr(rubric, "score_rollout", None)
-    if callable(score_rollout):
+    if use_funcs and not _reward_funcs(rubric):
+        raise GraderLoadError(
+            "verifiers adapter: scoring 'funcs', but the rubric has no reward functions"
+        )
+    if callable(score_rollout) and not use_funcs:
+        names, var_kw = accepted_keywords(score_rollout)
+        state_only = "state" in names and not var_kw and not names & _ROLLOUT_FIELDS
 
         def by_rubric(rollout: dict[str, Any]) -> Any:
+            if state_only:  # verifiers 0.3: score_rollout(state), the rollout lives in it
+                rollout = {**rollout, "state": _state(rollout)}
             keywords = bind_keywords(score_rollout, rollout)
             result = resolve_awaitable(score_rollout(**keywords, **constants))
             if result is None:  # newer rubrics write the reward into the state
@@ -210,6 +232,31 @@ def _rubric_scorer(
         return total
 
     return weighted
+
+
+def _state(rollout: Mapping[str, Any]) -> Any:
+    """The rollout state a ``score_rollout(state)`` reads: verifiers' own ``State`` built the
+    way its rollouts build it (``State(input=RolloutInput(...))``, then ``completion``,
+    ``trajectory`` and ``timing``) when verifiers is installed, else a dict with the same
+    keys."""
+    fields = {
+        "prompt": rollout["prompt"],
+        "answer": rollout["answer"],
+        "info": rollout["info"],
+        "example_id": 0,
+    }
+    try:
+        types = importlib.import_module("verifiers.types")
+        state = types.State(input=types.RolloutInput(**fields))
+        timing = getattr(types, "RolloutTiming", None)
+        state["timing"] = timing() if timing is not None else None
+    except Exception:
+        state = dict(fields)
+        state["timing"] = None
+    state["completion"] = rollout["completion"]
+    state["task"] = rollout["task"]
+    state["trajectory"] = []
+    return state
 
 
 def _reward_value(raw: Any) -> float:

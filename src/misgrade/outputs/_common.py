@@ -29,7 +29,7 @@ from misgrade.models import (
     decision,
     to_finding,
 )
-from misgrade.stats import identity_verdicts
+from misgrade.stats import identity_verdicts, injected_crash
 
 __all__ = [
     "CATEGORY_INTERVALS",
@@ -40,6 +40,7 @@ __all__ = [
     "ObservationStatus",
     "call_notes",
     "classify_observations",
+    "error_counts",
     "expected_decision",
     "finding_details",
     "finding_sentence",
@@ -277,6 +278,14 @@ def call_notes(result: AuditResult) -> list[str]:
             f"{summary.errors} of {plural(graded, 'grader call')} ended without a score "
             f"(error, timeout or crash){rejected}"
         )
+        common = error_counts(result)
+        if common:
+            notes.append(
+                "the most common reason"
+                + ("s" if len(common) > 1 else "")
+                + ": "
+                + "; ".join(f"{count}x {message}" for count, message in common)
+            )
     if summary.injected:
         notes.append(
             f"{plural(summary.injected, 'call')} ended on purpose by the worker-death check "
@@ -288,6 +297,27 @@ def call_notes(result: AuditResult) -> list[str]:
             "the item was not accepted)"
         )
     return notes
+
+
+MAX_ERROR_TEXT: Final = 200
+"""Characters of an error message shown in a summary."""
+
+
+def error_counts(result: AuditResult, *, top: int = 3) -> list[tuple[int, str]]:
+    """The ``top`` most common messages of the calls that ended without a score, with their
+    counts (most common first, then alphabetical); the calls misgrade ended on purpose are left
+    out. Messages are clipped to :data:`MAX_ERROR_TEXT` characters."""
+    counts: dict[str, int] = {}
+    for obs in result.observations:
+        verdict = obs.verdict
+        if verdict.status is CallStatus.OK or injected_crash(obs):
+            continue
+        message = " ".join((verdict.error or verdict.status.value).split())
+        if len(message) > MAX_ERROR_TEXT:
+            message = message[: MAX_ERROR_TEXT - 3] + "..."
+        counts[message] = counts.get(message, 0) + 1
+    ranked = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+    return [(count, message) for message, count in ranked[: max(0, top)]]
 
 
 def rate_text(rate: Rate) -> str:

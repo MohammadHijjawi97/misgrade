@@ -16,6 +16,7 @@ This module is the reference wiring of the parts and calls only their public fun
 from __future__ import annotations
 
 import hashlib
+import json
 import platform
 import random
 import sys
@@ -42,6 +43,7 @@ from misgrade.models import (
     DisagreementMatrix,
     FaultMode,
     Finding,
+    GraderInfo,
     GraderSpec,
     Isolation,
     Item,
@@ -58,13 +60,17 @@ from misgrade.seeds import load_seeds
 from misgrade.stats import disagreement, summarize
 from misgrade.transforms import applicable_ops, apply_chain, generate_cases
 from misgrade.transforms.certify import read
+from misgrade.transforms.generate import slot_in_math
+from misgrade.transforms.structures import parse_set
 
 __all__ = [
     "GraderLike",
     "audit",
+    "cases_digest",
     "compare",
     "derive_seed",
     "environment",
+    "latex_set_golds",
     "plan_cases",
     "poison_cases",
     "stress_case",
@@ -133,9 +139,10 @@ def audit(
         if limits:
             notes.append(limits)
             warnings.warn(limits, MisgradeWarning, stacklevel=2)
-    pool = _items(items, cfg)
-    notes.extend(_unreadable_golds(pool))
     tmpl = resolve_template(cfg.template)
+    pool, rewritten = latex_set_golds(_items(items, cfg), tmpl)
+    notes.extend(rewritten)
+    notes.extend(_unreadable_golds(pool))
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     clock = time.perf_counter()
 
@@ -187,7 +194,9 @@ def audit(
                 minimized.append(smaller)
                 observations.extend(made)
             findings = minimized
-        info = session.info
+    # After the session closed: the libraries the grader imported while it was graded are in.
+    info = session.info
+    notes.extend(_empty_record(info))
 
     if cfg.faults and cfg.fault_budget > 0:
         poison = poison_cases(pool, cases, cfg) if FaultMode.TIMEOUT in cfg.faults else []
@@ -206,6 +215,9 @@ def audit(
 
     summary = summarize(observations, findings, errors_as_reject=cfg.errors_as_reject)
     env = environment()
+    # misgrade builds and certifies the cases in the grader's environment (with its sympy): the
+    # digest lets two results confirm that they graded the same main-phase cases.
+    env["cases_sha256"] = cases_digest(cases)
     if cfg.search:
         # The two search engines draw different chains from the same seed.
         env["search"] = engine_name()
@@ -342,6 +354,52 @@ def stress_case(item: Item) -> Mutant:
     )
 
 
+def latex_set_golds(items: Sequence[Item], template: str) -> tuple[tuple[Item, ...], list[str]]:
+    r"""The items with set golds written in TeX's notation when the template puts the answer
+    in math mode, and a note naming them.
+
+    In TeX math mode (inside ``\boxed{}`` or ``$...$``) bare braces group and print nothing:
+    ``\boxed{{1, 2, 3}}`` shows ``1, 2, 3``, a list, not a set. A set gold written with bare
+    braces (``{1, 2, 3}``, as the bundled seeds write them) becomes ``\{1, 2, 3\}`` for such
+    templates, so its identity case is a set in the template's own notation. Other items, and
+    every item under a template without math mode, are unchanged."""
+    if not slot_in_math(template):
+        return tuple(items), []
+    out: list[Item] = []
+    changed: list[Item] = []
+    for item in items:
+        model = parse_set(item.gold) if item.answer_type is AnswerType.SET else None
+        if model is not None and model.open == "{" and not model.empty_symbol:
+            gold = item.gold.strip()
+            item = replace(item, gold="\\{" + gold[1:-1] + "\\}")
+            changed.append(item)
+        out.append(item)
+    if not changed:
+        return tuple(out), []
+    shown = ", ".join(f"{item.id} ({item.gold})" for item in changed[:3])
+    more = f" and {len(changed) - 3} more" if len(changed) > 3 else ""
+    verb = "is" if len(changed) == 1 else "are"
+    return tuple(out), [
+        "the template puts the answer in TeX math mode, where bare braces group instead of "
+        f"delimiting a set, so {_count(len(changed), 'set gold')} {verb} written "
+        f"\\{{...\\}}: {shown}{more}"
+    ]
+
+
+def cases_digest(cases: Sequence[Case]) -> str:
+    """A sha256 over the cases' ids, responses and certificates, in order: equal digests mean
+    the same cases, built and certified the same way (in whichever environment)."""
+    digest = hashlib.sha256()
+    for case in cases:
+        line = json.dumps(
+            [case.case_id, case.response, case.certificate.to_dict()],
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        digest.update(line.encode("utf-8") + b"\n")
+    return digest.hexdigest()
+
+
 def derive_seed(seed: int, key: str) -> int:
     """A per-item seed that does not depend on the order of items or on ``PYTHONHASHSEED``."""
     digest = hashlib.sha256(f"{seed}:{key}".encode()).digest()
@@ -455,6 +513,18 @@ def _unreadable_golds(items: Sequence[Item]) -> list[str]:
     return [
         f"misgrade cannot read {_count(len(unread), 'gold answer')} as the item's type: "
         f"{shown}{more}; operators that need the value do not apply (check the type)"
+    ]
+
+
+def _empty_record(info: GraderInfo) -> list[str]:
+    """A note when nothing identifies the code behind the verdicts (no distribution, no
+    source file): a comparison of the recorded versions with a lock file would pass vacuously."""
+    if info.versions or info.provenance:
+        return []
+    return [
+        "no library version or source file was recorded for the grader: misgrade found no "
+        "installed distribution or file behind its code; record versions yourself with "
+        "--grader-version NAME=VERSION (the 'versions' option)"
     ]
 
 

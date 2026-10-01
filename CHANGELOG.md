@@ -84,7 +84,65 @@ All notable changes to misgrade are listed here. The format follows
 - The `timeout` fault check gets pathological poison cases even when the category is excluded
   from the main phase.
 
+- Options for graders that real evaluation code needs: `--path` (the `sys_path` option) for
+  graders in a repository that is not installed, `--grader-version NAME=VERSION` (the
+  `versions` option), `--items` / `--exclude-items` to audit part of the items; the `callable`
+  adapter's `batch`, `result_key` and `scale` for evaluators that take lists and return
+  structured or percentage scores; verl's `source` (load verl's scorers from a checkout
+  without verl's training stack); verifiers' `scoring`; lm-eval's `doc_fields`, `process_docs`
+  and `reference` (documents and references built per item); Inspect's `solver` and
+  `multiple_correct` (scorers of solver-marked choices) and `{"$import": "module:attr"}` values
+  in `scorer_args`.
+- The built-in target `math-verify` (`misgrade audit math-verify`): Math-Verify's documented
+  `verify(parse(gold), parse(answer))`, configured through `kwargs` and recorded in the result;
+  the `math-verify` extra now selects an ANTLR runtime.
+- `GraderInfo.provenance` (in the result and the card): the VCS commit of a distribution
+  installed from git, the URL of one installed from a file or folder, and the path, sha256 and
+  git commit of code that is not installed.
+- `environment.cases_sha256` in every result: a digest of the main-phase cases, so results
+  from two environments (two sympy versions) can be checked to have graded the same cases.
+
+### Changed
+
+- `GraderInfo.versions` records every installed distribution behind the grader (its own, the
+  ones its code references, and every one imported while it was loaded or graded), not a fixed
+  list of grading libraries; modules are matched to distributions by where they are installed,
+  so a stub or vendored copy named like a library is reported as not installed.
+- A run in which no grader call returned a score exits 1 even without `--fail-on`; the summary
+  says that nothing was measured instead of "No findings", and every summary names the most
+  common reasons calls ended without a score.
+- `set` golds written with bare braces are written `\{...\}` under templates that put the answer
+  in TeX math mode, where bare braces only group.
+- The TRL adapter decides the default completion format from the loaded function (TRL's own
+  functions, or a `completions` parameter annotated as a list of message lists, are
+  conversational), not from the target's text, and a failed call says when the other format is
+  needed.
+- `misgrade list templates` shows what each preset gives for the answer 42, and `--template`
+  says that only `{answer}` is replaced.
+
 ### Fixed
+
+Found by loading third-party graders through the adapters; each has a regression test.
+
+- What C extensions and processes started by the grader write is silenced with the grader's
+  own output (file descriptors 1 and 2, and on Windows the standard handles), and no process
+  the grader starts outlives its worker (a job object on Windows, a process group on POSIX).
+- Libraries a package imports lazily when the grader's attribute is read, and libraries
+  imported while grading, are recorded in `GraderInfo.versions`.
+- The verifiers adapter gives a `score_rollout(state)` rubric a state that holds the rollout
+  (verifiers' own `State` when installed) instead of an empty dict.
+- The verl adapter no longer claims every `verl.*` module target: a function of the package
+  that does not take verl's arguments goes to the `callable` adapter.
+- The lm-eval adapter recognises task files whose keys come from `include`, and a call that
+  reads a missing document field says which field and how to supply it.
+- The inspect adapter refuses a scorer of solver-marked choices without a solver (it could
+  accept no response), and an object Inspect registered as a scorer is handed to it from any
+  package; the `callable` adapter's error for a zero-argument factory says so.
+- A grader file that imports its own package by name fails with an error that says how to name
+  it as a module.
+- The README no longer suggests that simple-evals and lighteval have adapters: the docs show
+  how to audit them through the `callable` adapter. The docs state what the `verl` extra
+  installs and what installing misgrade adds to a grader's environment.
 
 Found by a review of the integrated pipeline; each has a regression test.
 
