@@ -1279,7 +1279,8 @@ def power_tower(text: str, item: Item) -> str | None:
 
 @mutant("patho.factorial-tower", category=Category.PATHOLOGICAL, types=[N, L])
 def factorial_tower(text: str, item: Item) -> str | None:
-    """Answer ``(10^{10})!``: wrong, and a parser that evaluates it never finishes."""
+    """Answer ``(10^{10})!``: wrong, and a parser that evaluates it computes a number with more
+    than 10^10 digits."""
     return _FACTORIAL if _small_gold(item) else None
 
 

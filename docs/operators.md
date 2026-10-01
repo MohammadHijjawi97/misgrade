@@ -95,7 +95,7 @@ Examples use the plain `{answer}` template; *scope* says whether an operator rew
 
 | operator | types | scope | certificate | description | example (gold -> case) | motivated by |
 | --- | --- | --- | --- | --- | --- | --- |
-| `num.decimal` | number, latex | answer | cas | Write a rational with a terminating expansion as a decimal (``1/2`` -> ``0.5``). | `-2.50` -> `-2.5` | misgrade design |
+| `num.decimal` | number, latex | answer | cas | Write a rational with a terminating expansion as a decimal (``1/2`` -> ``0.5``). | `\frac{1}{2}` -> `0.5` | misgrade design |
 | `num.frac-sign-inside` | number, latex | answer | cas | Put the minus sign of a negative fraction in its numerator (``\frac{-1}{4}``). | `-2.50` -> `\frac{-5}{2}` | misgrade design |
 | `num.fraction` | number, latex | answer | cas | Write a non-integer rational as a fraction ``a/b`` (``0.5`` -> ``1/2``). | `-2.50` -> `-5/2` | misgrade design |
 | `num.latex-frac` | number | answer | cas | Write a non-integer rational as ``\frac{a}{b}`` (``0.5`` -> ``\frac{1}{2}``). | `-2.50` -> `-\frac{5}{2}` | misgrade design |
@@ -305,7 +305,7 @@ Examples use the plain `{answer}` template; *scope* says whether an operator rew
 
 | operator | types | scope | certificate | description | example (gold -> case) | motivated by |
 | --- | --- | --- | --- | --- | --- | --- |
-| `patho.factorial-tower` | number, latex | answer | construction | Answer ``(10^{10})!``: wrong, and a parser that evaluates it never finishes. | `1250` -> `(10^{10})!` | verl#8011, Math-Verify#79, misgrade design |
+| `patho.factorial-tower` | number, latex | answer | construction | Answer ``(10^{10})!``: wrong, and a parser that evaluates it computes a number with more than 10^10 digits. | `1250` -> `(10^{10})!` | verl#8011, Math-Verify#79, misgrade design |
 | `patho.power-tower` | number, latex | answer | construction | Answer the power tower ``10^{10^{10}}``: wrong, and a parser that evaluates it computes a number with 10^10 + 1 digits. | `1250` -> `10^{10^{10}}` | verl#8011, Math-Verify#79, misgrade design |
 
 ## References

@@ -115,6 +115,8 @@ ROWS: list[tuple[str, AnswerType, str, str | None]] = [
     ("sep.latex-comma", N, "1234", "1{,}234"),
     # Unicode forms
     ("unicode.minus", L, "x", None),
+    ("unicode.minus", L, "\\text{x-axis}", None),
+    ("unicode.minus", L, "x-1", "x−1"),
     ("unicode.fullwidth", N, "\\frac{1}{2}", None),
     ("unicode.fullwidth", M, "B", "Ｂ"),
     ("unicode.fullwidth", B, "\\text{true}", None),

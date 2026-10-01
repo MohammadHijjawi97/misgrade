@@ -645,7 +645,7 @@ def frac_sign_inside(text: str, item: Item) -> str | None:
 def decimal(text: str, item: Item) -> str | None:
     """Write a rational with a terminating expansion as a decimal (``1/2`` -> ``0.5``)."""
     value = _rational(text, item)
-    if value is None:
+    if value is None or _plain(text) is not None:
         return None
     out = decimal_text(value)
     return None if out is None else _kept(item, text, out)
@@ -752,7 +752,7 @@ def sep_narrow_nbsp(text: str, item: Item) -> str | None:
 @variant("unicode.minus", category=Category.UNICODE_FORM, types=MATH)
 def unicode_minus(text: str, item: Item) -> str | None:
     """Write minus signs as U+2212 MINUS SIGN, the character Unicode defines for minus."""
-    if "-" not in text:
+    if "-" not in text or read(text, item) is None:
         return None
     return text.replace("-", "\u2212")
 

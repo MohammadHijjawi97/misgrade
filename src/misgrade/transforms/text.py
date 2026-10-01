@@ -11,6 +11,7 @@ from collections.abc import Iterable
 
 __all__ = [
     "balanced",
+    "braces_balanced",
     "group_end",
     "label_tokens",
     "loose",
