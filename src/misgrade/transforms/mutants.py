@@ -727,7 +727,10 @@ def mismatched_text(text: str, item: Item) -> str | None:
     label = _bare_label(text, item)
     other = None if label is None else (_neighbour(item, label, 1) or _neighbour(item, label, -1))
     words = None if other is None else option_text(item.choices, other)
-    if words is None or not words.strip() or "\n" in words:
+    own = None if label is None else option_text(item.choices, label)
+    if words is None or own is None or not words.strip() or "\n" in words:
+        return None
+    if loose(words) == loose(own):
         return None
     return f"{text.strip()}. {words.strip()}"
 
