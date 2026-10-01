@@ -1,0 +1,9 @@
+include: task_base.yaml
+task: custom_math
+filter_list:
+  - name: custom
+    filter:
+      - function: custom
+        filter_fn: !function task_utils.last_line
+      - function: take_first
+process_results: !function task_utils.process_results

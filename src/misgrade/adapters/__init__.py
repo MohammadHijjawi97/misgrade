@@ -29,10 +29,26 @@ promptfoo  promptfoo assertions (equals, contains, regex, is-json, python, ...; 
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+import inspect
+import json
+import sys
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any, Protocol, runtime_checkable
 
-from misgrade._registry import Registry
-from misgrade.errors import GraderLoadError, MisgradeError
+from misgrade._registry import Registry, load_plugins
+from misgrade.adapters._base import detect_convention
+from misgrade.adapters._callable import CallableAdapter
+from misgrade.adapters._common import INLINE_TARGET, is_in_process, register_in_process
+from misgrade.adapters._common import coerce_score as _coerce_score
+from misgrade.adapters._inspect import InspectAdapter
+from misgrade.adapters._lmeval import LmEvalAdapter
+from misgrade.adapters._openai import OpenAIAdapter
+from misgrade.adapters._promptfoo import PromptfooAdapter
+from misgrade.adapters._trl import TrlAdapter
+from misgrade.adapters._verifiers import VerifiersAdapter
+from misgrade.adapters._verl import VerlAdapter
+from misgrade.errors import ConfigError, GraderLoadError, MisgradeError, UnknownNameError
 from misgrade.models import GradeRequest, GraderInfo, GraderSpec
 
 __all__ = [
@@ -41,12 +57,11 @@ __all__ = [
     "Adapter",
     "Grader",
     "coerce_score",
+    "in_process_only",
     "load_grader",
     "register_adapter",
     "resolve_spec",
 ]
-
-__stub__ = True
 
 ADAPTER_NAMES: tuple[str, ...] = (
     "callable",
@@ -150,8 +165,57 @@ def resolve_spec(
     module and qualified name becomes ``module:qualname`` (spawn-safe); one that cannot (a
     lambda, a closure, a function defined in ``__main__``) gets an in-process spec, which
     only works with ``Isolation.NONE`` -- the runner says so when another isolation is asked.
+
+    Also: a callable defined in a file that is not importable by name becomes
+    ``path/to/file.py:qualname``; a callable whose parameter names follow a framework's
+    convention (verl, TRL, Inspect, verifiers) gets that adapter; a mapping is an inline
+    configuration (an OpenAI grader, promptfoo assertions or an lm-eval task) and a list is
+    inline promptfoo assertions. Options must be JSON-serializable (they are sent to the
+    worker and recorded in the result). Raises :class:`~misgrade.errors.ConfigError` for an
+    unknown adapter or a target misgrade cannot read.
     """
-    raise NotImplementedError("builder B: adapters.resolve_spec")
+    if isinstance(target, GraderSpec):
+        if adapter is None and options is None and name is None:
+            return target
+        return GraderSpec(
+            adapter=_known_adapter(adapter) if adapter is not None else target.adapter,
+            target=target.target,
+            options=_json_options({**target.options, **(options or {})}),
+            name=name if name is not None else target.name,
+        )
+    opts = _json_options(dict(options or {}))
+    chosen = _known_adapter(adapter) if adapter is not None else None
+    if isinstance(target, str):
+        text = target.strip()
+        if not text:
+            raise ConfigError("the grader target is empty")
+        return GraderSpec(chosen or _sniff(text), text, opts, name)
+    if isinstance(target, (Mapping, list)):
+        config = _json_value(target, "the inline grader configuration")
+        chosen = chosen or _sniff_config(config)
+        key = {"openai": "config", "promptfoo": "config", "lm-eval": "task"}.get(chosen)
+        if key is None:
+            raise ConfigError(
+                f"the {chosen} adapter does not read an inline configuration (openai, promptfoo "
+                "and lm-eval do)"
+            )
+        return GraderSpec(chosen, INLINE_TARGET, {**opts, key: config}, name)
+    if callable(target) or chosen is not None or hasattr(target, "rubric"):
+        chosen = chosen or detect_convention(target) or _object_adapter(target)
+        importable = _import_path(target)
+        if importable is not None:
+            return GraderSpec(chosen, importable, opts, name)
+        return GraderSpec(chosen, register_in_process(target), opts, name)
+    raise ConfigError(
+        f"cannot audit {type(target).__name__} {target!r:.60}: pass a callable, a "
+        "'module:function' or 'path/to/file.py:function' string, or a GraderSpec"
+    )
+
+
+def in_process_only(spec: GraderSpec) -> bool:
+    """Whether ``spec`` names a Python object that only this process has (a lambda, a closure,
+    an instance): it can be graded with ``Isolation.NONE`` only."""
+    return is_in_process(spec.target)
 
 
 def coerce_score(raw: object) -> float:
@@ -160,5 +224,128 @@ def coerce_score(raw: object) -> float:
     ``bool`` -> 0.0/1.0; ``int``/``float`` as is; a dict with ``"score"`` (verl) -> that; a
     one-element list (TRL) -> its element; anything else (``None``, strings, several scores)
     raises ``TypeError`` naming what was returned.
+
+    Also read as numbers: other real numbers (``Fraction``, ``Decimal``, numpy scalars) and
+    0-d arrays or tensors (their ``item()``).
     """
-    raise NotImplementedError("builder B: adapters.coerce_score")
+    return _coerce_score(raw)
+
+
+# --------------------------------------------------------------------------------------------
+# Helpers of resolve_spec
+# --------------------------------------------------------------------------------------------
+
+
+def _known_adapter(name: str) -> str:
+    if name not in ADAPTERS:
+        try:
+            load_plugins("misgrade.adapters")
+        except MisgradeError as exc:
+            raise ConfigError(str(exc)) from exc
+    try:
+        ADAPTERS.get(name)
+    except UnknownNameError as exc:
+        raise ConfigError(str(exc)) from exc
+    return name
+
+
+def _sniff(target: str) -> str:
+    for adapter in ADAPTERS.values():
+        if adapter.name == "callable":
+            continue
+        try:
+            if adapter.sniff(target):
+                return adapter.name
+        except Exception:  # a sniff must never break resolution
+            continue
+    return "callable"
+
+
+def _sniff_config(config: object) -> str:
+    if isinstance(config, list):
+        return "promptfoo"
+    keys = set(config) if isinstance(config, Mapping) else set()
+    if {"assert", "defaultTest", "tests"} & keys:
+        return "promptfoo"
+    if {"filter_list", "metric_list", "output_type"} & keys:
+        return "lm-eval"
+    if {"type", "grader", "testing_criteria"} & keys:
+        return "openai"
+    raise ConfigError(
+        "cannot tell which framework this inline configuration is for; pass adapter='openai', "
+        "'promptfoo' or 'lm-eval'"
+    )
+
+
+def _object_adapter(obj: object) -> str:
+    if not callable(obj) and (hasattr(obj, "rubric") or hasattr(obj, "score_rollout")):
+        return "verifiers"
+    return "callable"
+
+
+def _json_value(value: object, what: str) -> Any:
+    try:
+        return json.loads(json.dumps(value))
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"{what} must be JSON-serializable: {exc}") from exc
+
+
+def _json_options(options: Mapping[str, object]) -> dict[str, Any]:
+    data: dict[str, Any] = _json_value(dict(options), "adapter options")
+    return data
+
+
+def _import_path(obj: object) -> str | None:
+    """``module:qualname`` (or ``path/to/file.py:qualname``) that loads ``obj`` again in a fresh
+    interpreter; None when there is none."""
+    module_name = getattr(obj, "__module__", None)
+    qualname = getattr(obj, "__qualname__", None)
+    if not isinstance(module_name, str) or not isinstance(qualname, str):
+        return None
+    if module_name in ("__main__", "__mp_main__") or "<" in qualname:
+        return None
+    module = sys.modules.get(module_name)
+    if module is None:
+        return None
+    found: Any = module
+    for part in qualname.split("."):
+        found = getattr(found, part, None)
+        if found is None:
+            return None
+    if found is not obj and not (inspect.ismethod(obj) and found == obj):
+        return None
+    file = getattr(module, "__file__", None)
+    if file is None or _importable_by_name(module_name, Path(file)):
+        return f"{module_name}:{qualname}"
+    return f"{Path(file).as_posix()}:{qualname}"
+
+
+def _importable_by_name(module_name: str, file: Path) -> bool:
+    """Whether importing ``module_name`` from ``sys.path`` finds ``file`` (a module that pytest
+    or misgrade imported from a path under a made-up name does not)."""
+    resolved = file.resolve()
+    parts = module_name.split(".")
+    for entry in sys.path:
+        try:
+            relative = resolved.relative_to(Path(entry or ".").resolve())
+        except (ValueError, OSError):
+            continue
+        pieces = list(relative.with_suffix("").parts)
+        if pieces and pieces[-1] == "__init__":
+            pieces = pieces[:-1]
+        if pieces == parts:
+            return True
+    return False
+
+
+for _adapter in (
+    CallableAdapter(),
+    InspectAdapter(),
+    LmEvalAdapter(),
+    OpenAIAdapter(),
+    PromptfooAdapter(),
+    TrlAdapter(),
+    VerifiersAdapter(),
+    VerlAdapter(),
+):
+    register_adapter(_adapter)
