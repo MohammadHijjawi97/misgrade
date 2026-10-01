@@ -13,7 +13,7 @@ Isolation (``RunConfig.isolation``):
   what makes timeouts work on Windows and in threads. A worker that dies mid-call gives a
   ``crash`` verdict and is replaced the same way.
 - ``none``: the grader runs in the calling process (for lambdas and closures). A timeout only
-  stops waiting (the call keeps running in a daemon thread); the report says so.
+  stops waiting (the call keeps running in a daemon thread); the timeout verdict says so.
 
 A grader is loaded once per worker; the identity of the worker (and so the grader's in-memory
 state) persists across calls until a timeout, a crash or :meth:`GraderSession.restart`. That
@@ -38,8 +38,6 @@ from misgrade.models import (
 )
 
 __all__ = ["GraderSession", "grade_cases", "open_session"]
-
-__stub__ = True
 
 
 @runtime_checkable
@@ -92,9 +90,13 @@ def open_session(spec: GraderSpec, config: RunConfig) -> GraderSession:
     """Start a session: spawn the worker (or not, for ``Isolation.NONE``) and load the grader.
 
     Raises :class:`~misgrade.errors.GraderLoadError` when the grader cannot be loaded (within
-    ``config.startup_timeout_s``), before any case is graded.
+    ``config.startup_timeout_s``), before any case is graded. A spec for an in-process object
+    (a lambda, a closure; see :func:`misgrade.adapters.in_process_only`) needs
+    ``Isolation.NONE``; with ``Isolation.SUBPROCESS`` it raises GraderLoadError saying so.
     """
-    raise NotImplementedError("builder B: runner.open_session")
+    from misgrade.runner._session import start_session
+
+    return start_session(spec, config)
 
 
 def grade_cases(

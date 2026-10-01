@@ -442,7 +442,55 @@ first line (`tests/transforms/test_operator_registry.py` still holds). `certify.
 
 ### 11.B Runner, faults, adapters
 
-_No notes yet._
+Full user-facing description: [adapters.md](adapters.md). Notes for the other builders and the
+integrator:
+
+- **No contract change was needed.** Every signature in section 5 is as pinned. Additions are
+  new names only: `misgrade.adapters.in_process_only(spec) -> bool`; private modules
+  `adapters/_*.py`, `runner/_session.py`; `worker_main(spec, conn, control=None)` (the worker
+  protocol is private to the runner).
+- **`resolve_spec` extras.** A mapping or a list is an inline configuration
+  (`GraderSpec(<adapter>, "<inline>", {"config"|"task": ...})`); a callable whose parameter
+  names follow verl, TRL, Inspect or verifiers gets that adapter; a callable from a module
+  imported from a file under another name (pytest's importlib mode, misgrade's file loader)
+  becomes `path/to/file.py:qualname`. Options must be JSON-serializable (`ConfigError`).
+- **For D (`api.audit`, CLI).** A lambda or closure gets an in-process spec; with the default
+  `Isolation.SUBPROCESS`, `open_session` raises `GraderLoadError` whose message says to use
+  isolation `none`. `audit` may instead switch to `Isolation.NONE` itself when
+  `in_process_only(spec)`; that is D's call.
+- **For D (planted fault graders).** What each mode does is in the docstring of
+  `runner/faults.py`; `tests/runner/graders.py` has one detected toy grader per mode
+  (`repeat_bug`, `order_bug`, `signal_bug`, `race_bug`, `timeout_bug`, `pool_bug`,
+  `lock_bug`), each detected by `tests/runner/test_faults.py` (run locally on Windows with
+  Python 3.10 and 3.13; CI runs it on Linux, macOS and Windows). Points that matter for 100%
+  recall:
+  - `repeat` compares the *second* grading in one fresh worker (the first pass is a warm-up
+    without reference), so the bug must show on a repeat within one process.
+  - `concurrency`: `signal.alarm` does not exist on Windows (an error in every phase, never
+    compared); `signal.signal(...)` raises off the main thread on every OS, and a global
+    written and read around a short sleep races on every OS.
+  - `timeout` needs poison: `api.audit` passes the main-phase `pathological` cases, so the
+    planted grader's items must be of a type with a pathological operator (A provides them
+    for `number` and `latex`), and the grader must hang on that response (or break its own
+    state on it). The poison is graded with a *soft* timeout that keeps the process alive, so
+    in-memory state survives; use a short `RunConfig.timeout_s` in the self-test (each poison
+    call waits that long, once in the main phase and once here).
+  - `worker-death` kills the first multiprocessing child the grader started (a
+    `ProcessPoolExecutor` that then stays broken is the verl#8011 pattern); with no child, the
+    worker ends itself 20 ms into a call, so on-disk state must outlive the process (a lock
+    file held during a call that lasts longer than that). It needs `Isolation.SUBPROCESS`.
+  - The sample interleaves accepted and rejected clean-run verdicts: a grader that rejects
+    everything after the fault is caught as soon as the sample holds one accepted case.
+- **Proposal (integrator): add `pyyaml` to the `dev` dependency group** in `pyproject.toml`.
+  YAML task and promptfoo files work only with PyYAML (imported lazily, with an install hint);
+  without it in CI, `test_yaml_task_with_include_and_functions` and `test_yaml_config` skip and
+  the YAML lines of `_lmeval.py` are not covered (they pass locally with PyYAML on 3.10).
+- **Known limits.** Only multiprocessing children are killed (by the worker-death check and
+  when a stuck worker is stopped); `subprocess` children are not (no `psutil` dependency).
+  With `Isolation.NONE` a timed-out call keeps running in a daemon thread. lm-eval, promptfoo
+  and OpenAI graders without their framework run on misgrade's re-implementations, and the
+  grader card's `versions` says so.
+- **Bugs found in others' files:** none.
 
 ### 11.C Statistics, minimization, search, outputs
 
