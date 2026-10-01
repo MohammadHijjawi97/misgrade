@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/MohammadHijjawi97/misgrade/main/docs/img/logo.svg" width="112" alt="misgrade logo: a check mark with an offset copy, and a magnifier">
+</p>
+
 # misgrade
 
 **Conformance tests for the graders that ML training and evaluation depend on.**
