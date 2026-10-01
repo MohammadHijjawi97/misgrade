@@ -91,7 +91,9 @@ as not measured. Metrics: `fp_rate`, `fn_rate`, `self_validation_rate`, `fault_r
 `--format result` writes `misgrade-result.json`, the whole audit. `misgrade report` renders it
 in other formats or applies another gate without running the grader again; `misgrade card`
 prints its grader card; `misgrade minimize` runs the grader again to minimize findings that were
-not minimized (an audit run with `--no-minimize`, or `--finding ID` to redo one).
+not minimized (an audit run with `--no-minimize`, or `--finding ID` to redo one). A result
+records the grader's target and adapter but not its adapter options: pass `--option` again if
+the audit had any.
 
 ## Python API
 

@@ -456,21 +456,39 @@ def explain_category(category: str) -> str:
     return f"{member.value}: {meaning}.\n{rule.capitalize()}.\nUsual fix: {fix}."
 
 
+def _import_lines(module: str, function: str) -> list[str]:
+    """How a test file gets the grader function: by module name, or by path for a file."""
+    if module.endswith(".py") or "/" in module or "\\" in module:
+        return [
+            "import importlib.util",
+            "",
+            f'_spec = importlib.util.spec_from_file_location("grader_under_test", {module!r})',
+            "_module = importlib.util.module_from_spec(_spec)",
+            "_spec.loader.exec_module(_module)",
+            f"{function} = _module.{function}",
+        ]
+    return [f"from {module} import {function}"]
+
+
 def _regression_test(finding: Finding, result: AuditResult) -> str:
     shown = finding.shown
+    if result.grader.adapter != "callable" or ":" not in result.grader.target:
+        return (
+            f"(the {result.grader.adapter} adapter calls the grader with its framework's "
+            "signature: run misgrade audit with --format pytest for a regression file)"
+        )
+    module, _, function = result.grader.target.rpartition(":")
     threshold = result.config.run.accept_threshold
-    target = result.grader.target
-    module, _, function = target.rpartition(":")
     must = ">=" if shown.kind is CaseKind.VARIANT else "<"
+    name = f"test_{shown.item.id}_{shown.category.value}".replace("-", "_").replace(".", "_")
     lines = [
         f"# {finding.finding_id}: {shown.certificate.reason}",
-        f"from {module.replace('/', '.').removesuffix('.py') or 'rewards'} import "
-        f"{function or 'score'}",
+        *_import_lines(module, function),
         "",
         "",
-        f"def test_{shown.item.id.replace('-', '_')}_{shown.category.value.replace('-', '_')}():",
-        f"    score = {function or 'score'}({shown.response!r}, {shown.item.gold!r})",
-        f"    assert score {must} {threshold!r}",
+        f"def {name}():",
+        f"    observed = {function}({shown.response!r}, {shown.item.gold!r})",
+        f"    assert observed {must} {threshold!r}",
     ]
     return "\n".join(lines)
 

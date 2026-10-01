@@ -150,9 +150,10 @@ def test_explain_finding(fakes: list[dict[str, Any]], tmp_path: Path) -> None:
     assert "required: reject; observed: accept (score 1)" in text
     assert "certificate (cas, claims different): 43 != 42" in text
     assert "def test_number_001_near_miss():" in text
-    assert "score = compute_score('43', '42')" in text and "assert score < 0.5" in text
+    assert "from toy_rewards import compute_score" in text
+    assert "observed = compute_score('43', '42')" in text and "assert observed < 0.5" in text
     search = mcp_server.explain_finding("false-negative:number-001::latex.boxed+ws.trailing-space")
-    assert "minimized" in search and "assert score >= 0.5" in search
+    assert "minimized" in search and "assert observed >= 0.5" in search
     fault = mcp_server.explain_finding("fault:number-001::identity@repeat")
     assert "fault check repeat" in fault and "regression test" not in fault
 
@@ -348,3 +349,20 @@ def test_grader_load_errors_reach_the_agent(
     tool = mcp_server.build_server().tools["audit_grader"][0]
     with pytest.raises(FakeToolError, match="cannot import rewards"):
         tool("rewards.py:score")
+
+
+def test_regression_snippets_by_target(tmp_path: Path) -> None:
+    result = sample_result()
+    finding = result.findings[1]  # the false positive "43" for "42"
+    by_path = replace(result, grader=replace(result.grader, target="src/rewards.py:score"))
+    snippet = mcp_server._regression_test(finding, by_path)
+    assert "spec_from_file_location(\"grader_under_test\", 'src/rewards.py')" in snippet
+    namespace: dict[str, Any] = {}
+    grader = tmp_path / "rewards.py"
+    grader.write_text("def score(answer, gold):\n    return 1.0\n", encoding="utf-8")
+    runnable = snippet.replace("'src/rewards.py'", repr(str(grader)))
+    exec(compile(runnable, "snippet", "exec"), namespace)
+    with pytest.raises(AssertionError):
+        namespace["test_number_001_near_miss"]()  # the buggy grader accepts "43"
+    verl = replace(result, grader=replace(result.grader, adapter="verl"))
+    assert "--format pytest" in mcp_server._regression_test(finding, verl)
