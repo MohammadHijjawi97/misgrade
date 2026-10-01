@@ -372,7 +372,73 @@ knowing, deviations, contract change proposals, bugs found in others' files.
 
 ### 11.A Transforms, mutants, type detection
 
-_No notes yet._
+**What exists.** 94 variant operators (13 categories) and 72 mutant operators (12 categories);
+the catalog with descriptions, examples and the source each one is motivated by is
+`docs/operators.md`, generated from `misgrade.transforms.catalog` (a test keeps it current).
+Modules: `numbers` (exact `Fraction` reader/writer, stdlib only), `latex` (own recursive-descent
+LaTeX -> sympy reader with size limits), `structures` (interval, set, MC, bool, JSON, string
+readers and text models), `certify`, `variants`, `mutants`, `generate`, `catalog`, `text`.
+
+**Certification as implemented.**
+
+- `cas` / `structural` steps compare misgrade's own readings (`certify.same`): exact rationals
+  for numbers; sympy for LaTeX (`expand`/`simplify` to 0 for equal, a non-zero value beyond
+  1e-30 at 60 digits for different; letters `e`/`i` are symbols, read as Euler's number and the
+  imaginary unit only when evaluating a difference); intervals as merged sympy sets; sets
+  element-wise; JSON type-tagged with the *last* value of a duplicated key; free text after NFC
+  and whitespace normalization (*different* also ignores case and final punctuation).
+- `construction` steps take the operator's description as the argument. Built-in construction
+  mutants whose argument depends on the item register a check (`certify.register_check`):
+  hedges, retractions, two-finals and injections re-derive the alternative answer
+  (`mutants.alternative`, the first applicable near miss) and certify it different; truncation
+  re-checks that the prefix does not read as the same value; echo / master keys check that the
+  fixed text cannot be read as the gold; pathological answers check that the gold is a constant
+  below 10^100.
+- A chain's certificate: step reasons joined with "; then ", method = strongest used
+  (cas > structural > construction), evidence keys of later steps prefixed `<op>.`, plus
+  `sympy` when it was used.
+- After a construction mutant the text is no longer a value, so a later cas/structural step makes
+  the chain invalid; the same after the template unless it is the plain `{answer}`.
+- Strict mode (`MISGRADE_STRICT=1`) raises `CertificationError` only for a *single* operator on
+  the gold (an operator bug). In a longer chain an uncertifiable step only makes the chain invalid
+  (None): an operator may meet text it was not written for. C's search and minimizer therefore
+  never see this exception from composed chains. An operator that raises is reported the same way.
+- `cas`/`structural` operators check their own output with the same reader before handing it out,
+  so in practice they return None rather than fail certification; construction operators that
+  could break earlier steps (`case.*`, `unicode.fullwidth`, `bool.title`, number reformatting,
+  JSON re-serialization) only apply to bare values or to the gold's own layout.
+
+**Response-scope mutants and the template.** Operators receive `(text, item)` only. A
+response-scope mutant that needs a different answer *in the template* (retractions, `multi.repeat`,
+injections) replaces the one occurrence of the gold in the rendered response; when the gold occurs
+more than once (e.g. gold `x` inside `\boxed{x}`) the operator does not apply.
+
+**Notes for the other parts.**
+
+- B: the timeout poison is `Category.PATHOLOGICAL`: `patho.power-tower` (`10^{10^{10}}`) and
+  `patho.factorial-tower` (`(10^{10})!`), for number and latex items with a constant gold below
+  10^100. misgrade's own reader refuses both in microseconds (it never computes them).
+- C: `apply_chain` returns None for a chain that breaks the rule (a mutant not first, an
+  answer-scope operator after a response-scope one, a repeat, a type mismatch) and raises only
+  `UnknownNameError` (and `CertificationError` for a single broken operator in strict mode).
+  Random chains drawn from `applicable_ops` break the rule often; ordering a drawn chain as
+  "mutant first, then answer scope, then response scope" (`OPERATORS.get(name).kind/.scope`)
+  wastes fewer draws. `apply_chain(item, [])` is the identity case.
+- D: `detect_type("[1, 3]")` is `json` (a JSON array; every JSON operator is safe for an
+  interval, while interval operators are not safe for an array) with a reason that says to pass
+  `--type interval`; give bundled seeds an explicit type. A clean grader must accept every
+  variant form in `docs/operators.md` and reject every mutant there (`42 or 43`, `43 or 42`,
+  `The answer is not 42.`, a retraction ending in a wrong answer, `Answer:` alone, ...). The
+  robust design is: strip the known wrappers and phrases, then require exactly one answer of the
+  type in what is left. Planted graders can target any category through the operators listed per
+  answer type in `docs/operators.md` (letter-case: MC labels and booleans; bool-form: `True`;
+  type-confusion and json-structure: JSON only; pathological: number and latex).
+
+**Changes in my own files that others may notice.** `transforms/registry.py`: an operator's
+default description is now the first *paragraph* of its docstring (lines joined), not only the
+first line (`tests/transforms/test_operator_registry.py` still holds). `certify.py` keeps the stub's
+`certify_equivalent` / `certify_different` / `parse_value` and adds `certify_step`, `merge_steps`,
+`read`, `same`, `register_check`. No contract change is needed.
 
 ### 11.B Runner, faults, adapters
 

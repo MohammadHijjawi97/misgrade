@@ -10,8 +10,8 @@ Owner: builder A. Public API (the contract other parts code against):
   regression files).
 - :func:`applicable_ops`: operator names to compose for an item.
 
-Importing this package registers the built-in operators. It must not import sympy at import
-time (certification imports it on first use).
+Importing this package registers the built-in operators (see docs/operators.md for the
+catalog). It must not import sympy at import time (certification imports it on first use).
 """
 
 from __future__ import annotations
@@ -41,5 +41,3 @@ __all__ = [
     "mutant",
     "variant",
 ]
-
-__stub__ = True
