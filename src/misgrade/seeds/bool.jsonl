@@ -1,2 +1,12 @@
 {"id": "bool-001", "type": "bool", "gold": "true", "prompt": "Is 17 a prime number? Answer true or false."}
 {"id": "bool-002", "type": "bool", "gold": "false", "prompt": "Is 21 a prime number? Answer true or false."}
+{"id": "bool-003", "type": "bool", "gold": "true", "prompt": "Is water made of hydrogen and oxygen? Answer true or false."}
+{"id": "bool-004", "type": "bool", "gold": "false", "prompt": "Is the Sun a planet? Answer true or false."}
+{"id": "bool-005", "type": "bool", "gold": "true", "prompt": "Is 2 to the power of 10 greater than 1000? Answer true or false."}
+{"id": "bool-006", "type": "bool", "gold": "false", "prompt": "Is 91 a prime number? Answer true or false."}
+{"id": "bool-007", "type": "bool", "gold": "true", "prompt": "Is the square root of 2 irrational? Answer true or false."}
+{"id": "bool-008", "type": "bool", "gold": "false", "prompt": "Is every rectangle a square? Answer true or false."}
+{"id": "bool-009", "type": "bool", "gold": "true", "prompt": "Does a triangle have three sides? Answer true or false."}
+{"id": "bool-010", "type": "bool", "gold": "false", "prompt": "Is 1 greater than 2? Answer true or false."}
+{"id": "bool-011", "type": "bool", "gold": "true", "prompt": "Is Paris the capital of France? Answer true or false."}
+{"id": "bool-012", "type": "bool", "gold": "false", "prompt": "Is the Pacific Ocean smaller than the Atlantic Ocean? Answer true or false."}

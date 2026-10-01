@@ -1,2 +1,12 @@
 {"id": "json-001", "type": "json", "gold": "{\"name\": \"Ada\", \"year\": 1815}", "prompt": "Return a JSON object with the keys name and year: Ada Lovelace's first name and her birth year."}
 {"id": "json-002", "type": "json", "gold": "{\"items\": [3, 4, 5], \"total\": 12}", "prompt": "Return a JSON object with the list items [3, 4, 5] and their total."}
+{"id": "json-003", "type": "json", "gold": "{\"city\": \"Paris\", \"country\": \"France\"}", "prompt": "Return a JSON object with the keys city and country for the capital of France."}
+{"id": "json-004", "type": "json", "gold": "{\"x\": 2, \"y\": -3}", "prompt": "Solve x + y = -1 and x - y = 5. Return a JSON object with the keys x and y."}
+{"id": "json-005", "type": "json", "gold": "{\"element\": \"Fe\", \"atomic_number\": 26}", "prompt": "Return a JSON object with the keys element and atomic_number for iron."}
+{"id": "json-006", "type": "json", "gold": "{\"primes\": [2, 3, 5, 7], \"count\": 4}", "prompt": "Return a JSON object with the primes below ten (key primes) and how many there are (key count)."}
+{"id": "json-007", "type": "json", "gold": "{\"number\": 14, \"even\": true}", "prompt": "Return a JSON object with the key number set to fourteen and the key even saying whether it is even."}
+{"id": "json-008", "type": "json", "gold": "{\"point\": {\"x\": 1, \"y\": 2}, \"quadrant\": 1}", "prompt": "Return a JSON object with the key point (an object with x one and y two) and the key quadrant (the quadrant the point lies in)."}
+{"id": "json-009", "type": "json", "gold": "{\"celsius\": 100, \"fahrenheit\": 212}", "prompt": "Return a JSON object with the boiling point of water at sea level in degrees, keys celsius and fahrenheit."}
+{"id": "json-010", "type": "json", "gold": "{\"word\": \"level\", \"palindrome\": true}", "prompt": "Return a JSON object with the key word set to the word level and the key palindrome saying whether it reads the same backwards."}
+{"id": "json-011", "type": "json", "gold": "{\"min\": -4, \"max\": 9, \"values\": [9, -4, 0]}", "prompt": "Given the list [9, -4, 0], return a JSON object with the keys min, max and values (the list as given)."}
+{"id": "json-012", "type": "json", "gold": "{\"title\": \"Hamlet\", \"author\": \"William Shakespeare\"}", "prompt": "Return a JSON object with the keys title and author for the play whose hero is the Prince of Denmark."}

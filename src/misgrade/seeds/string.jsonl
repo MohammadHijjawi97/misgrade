@@ -1,3 +1,12 @@
 {"id": "string-001", "type": "string", "gold": "Paris", "prompt": "What is the capital of France?"}
 {"id": "string-002", "type": "string", "gold": "H2O", "prompt": "What is the chemical formula of water?"}
 {"id": "string-003", "type": "string", "gold": "Jupiter", "prompt": "Which is the largest planet in the Solar System?"}
+{"id": "string-004", "type": "string", "gold": "Tokyo", "prompt": "What is the capital of Japan?"}
+{"id": "string-005", "type": "string", "gold": "William Shakespeare", "prompt": "Who wrote the play Hamlet?"}
+{"id": "string-006", "type": "string", "gold": "NaCl", "prompt": "What is the chemical formula of table salt?"}
+{"id": "string-007", "type": "string", "gold": "Leonardo da Vinci", "prompt": "Who painted the Mona Lisa?"}
+{"id": "string-008", "type": "string", "gold": "Canberra", "prompt": "What is the capital city of Australia?"}
+{"id": "string-009", "type": "string", "gold": "Au", "prompt": "What is the chemical symbol for gold?"}
+{"id": "string-010", "type": "string", "gold": "Pacific", "prompt": "Which is the largest ocean on Earth?"}
+{"id": "string-011", "type": "string", "gold": "Mount Everest", "prompt": "Which mountain has the highest summit above sea level?"}
+{"id": "string-012", "type": "string", "gold": "Mars", "prompt": "Which planet is known as the Red Planet?"}

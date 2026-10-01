@@ -2,3 +2,12 @@
 {"id": "number-002", "type": "number", "gold": "0.5", "prompt": "What is 1 divided by 2? Give a decimal."}
 {"id": "number-003", "type": "number", "gold": "-12", "prompt": "What is 3 minus 15?"}
 {"id": "number-004", "type": "number", "gold": "1250", "prompt": "A shop sells 50 boxes at 25 dollars each. How many dollars does it take in?"}
+{"id": "number-005", "type": "number", "gold": "3.75", "prompt": "What is 15 divided by 4? Give a decimal."}
+{"id": "number-006", "type": "number", "gold": "2048", "prompt": "What is 2 to the power of 11?"}
+{"id": "number-007", "type": "number", "gold": "-7.5", "prompt": "What is 2.5 minus 10?"}
+{"id": "number-008", "type": "number", "gold": "144", "prompt": "What is 12 squared?"}
+{"id": "number-009", "type": "number", "gold": "100000", "prompt": "How many centimetres are in one kilometre?"}
+{"id": "number-010", "type": "number", "gold": "0.125", "prompt": "What is one eighth written as a decimal?"}
+{"id": "number-011", "type": "number", "gold": "365", "prompt": "How many days are in a year that is not a leap year?"}
+{"id": "number-012", "type": "number", "gold": "-273.15", "prompt": "What is absolute zero in degrees Celsius?"}
+{"id": "number-013", "type": "number", "gold": "1000000", "prompt": "How many metres are in one thousand kilometres?"}

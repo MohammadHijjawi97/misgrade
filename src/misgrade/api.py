@@ -36,6 +36,7 @@ from misgrade.models import (
     Case,
     Category,
     DisagreementMatrix,
+    FaultMode,
     Finding,
     GraderSpec,
     Item,
@@ -51,7 +52,15 @@ from misgrade.seeds import load_seeds
 from misgrade.stats import disagreement, summarize
 from misgrade.transforms import applicable_ops, apply_chain, generate_cases
 
-__all__ = ["GraderLike", "audit", "compare", "derive_seed", "plan_cases"]
+__all__ = [
+    "GraderLike",
+    "audit",
+    "compare",
+    "derive_seed",
+    "environment",
+    "plan_cases",
+    "poison_cases",
+]
 
 GraderLike = GraderSpec | str | Callable[..., object]
 """What :func:`audit` accepts as the grader: a spec, a CLI-style target string, or a callable."""
@@ -150,7 +159,7 @@ def audit(
         info = session.info
 
     if cfg.faults and cfg.fault_budget > 0:
-        poison = [case for case in cases if case.category is Category.PATHOLOGICAL]
+        poison = poison_cases(pool, cases, cfg) if FaultMode.TIMEOUT in cfg.faults else []
         fault_obs = run_fault_checks(
             spec,
             main,
@@ -238,6 +247,27 @@ def plan_cases(items: Sequence[Item], config: AuditConfig) -> list[Case]:
             if queue and len(kept) < room:
                 kept.add(queue.pop().case_id)
     return [case for case in generated if case.is_identity or case.case_id in kept]
+
+
+def poison_cases(items: Sequence[Item], planned: Sequence[Case], config: AuditConfig) -> list[Case]:
+    """The pathological cases the ``timeout`` fault check uses to provoke a timeout.
+
+    The planned main-phase pathological cases when there are any; otherwise the items'
+    pathological cases are generated for this purpose alone, so the check still runs when the
+    category was excluded from the main phase or did not fit the budget. (They are graded only
+    as poison: fault-phase calls without a reference, never counted in a rate.)
+    """
+    poison = [case for case in planned if case.category is Category.PATHOLOGICAL]
+    if poison:
+        return poison
+    tmpl = resolve_template(config.template)
+    only = frozenset({Category.PATHOLOGICAL})
+    return [
+        case
+        for item in items
+        for case in generate_cases(item, template=tmpl, include=only)
+        if case.category is Category.PATHOLOGICAL
+    ]
 
 
 def derive_seed(seed: int, key: str) -> int:
